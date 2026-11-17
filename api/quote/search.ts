@@ -1,5 +1,5 @@
 import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http.js';
-import { YAHOO } from '../_lib/yahoo.js';
+import { YAHOO, YAHOO_UA } from '../_lib/yahoo.js';
 
 // GET /api/quote/search?q=nvid
 // Symbol matches: stocks, ETFs, indices, futures and currencies.
@@ -15,7 +15,7 @@ export default proxy(async (req, res) => {
   // Letters, digits and the few marks that appear in tickers and company names.
   if (q.length < 1 || q.length > 40 || !/^[\p{L}\p{N} .&'^=\-]+$/u.test(q)) throw new ProxyError(400, 'bad_query', 'Search for a ticker or a company name.');
   const url = `${YAHOO}/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0&listsCount=0&enableFuzzyQuery=false`;
-  const data = await fetchJson<SearchResponse>({ name: 'Yahoo Finance', url });
+  const data = await fetchJson<SearchResponse>({ name: 'Yahoo Finance', url, userAgent: YAHOO_UA });
   const results = (data.quotes ?? [])
     .filter((x) => typeof x.symbol === 'string' && TYPES.has(x.quoteType ?? ''))
     .slice(0, 8)

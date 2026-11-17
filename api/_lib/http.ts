@@ -31,7 +31,8 @@ export function param(req: VercelRequest, name: string): string | undefined {
   return v;
 }
 
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+/** A plain, honest client name. Sources that insist on a browser string get one from their own module. */
+const UA = 'Mozilla/5.0 (compatible; MarketDataProxy/1.0)';
 
 export interface Upstream {
   /** Shown in error messages: "Yahoo Finance". */
@@ -39,6 +40,7 @@ export interface Upstream {
   url: string;
   timeoutMs?: number;
   accept?: string;
+  userAgent?: string;
 }
 
 /** GET an upstream URL and return its body as text. Throws ProxyError with a status fit to pass on. */
@@ -46,7 +48,7 @@ export async function fetchText(up: Upstream): Promise<string> {
   let r: Response;
   try {
     r = await fetch(up.url, {
-      headers: { 'User-Agent': UA, Accept: up.accept ?? 'application/json', 'Accept-Language': 'en-US,en;q=0.9' },
+      headers: { 'User-Agent': up.userAgent ?? UA, Accept: up.accept ?? 'application/json', 'Accept-Language': 'en-US,en;q=0.9' },
       signal: AbortSignal.timeout(up.timeoutMs ?? 8_000),
       redirect: 'error',
     });

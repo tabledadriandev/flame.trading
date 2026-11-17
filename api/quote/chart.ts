@@ -1,5 +1,5 @@
 import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http.js';
-import { YAHOO, barsOf, quoteOf, rangeAndInterval, symbol, type YahooResult } from '../_lib/yahoo.js';
+import { YAHOO, YAHOO_UA, barsOf, quoteOf, rangeAndInterval, symbol, type YahooResult } from '../_lib/yahoo.js';
 
 // GET /api/quote/chart?symbol=SPY&range=1d&interval=5m
 // Candles plus the quote (last price, previous close, session) for one symbol.
@@ -12,7 +12,7 @@ export default proxy(async (req, res) => {
   const sym = symbol(param(req, 'symbol'));
   const { range, interval } = rangeAndInterval(param(req, 'range'), param(req, 'interval'));
   const url = `${YAHOO}/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=${interval}&includePrePost=false`;
-  const data = await fetchJson<ChartResponse>({ name: 'Yahoo Finance', url });
+  const data = await fetchJson<ChartResponse>({ name: 'Yahoo Finance', url, userAgent: YAHOO_UA });
   const result = data.chart?.result?.[0];
   if (!result) {
     const code = data.chart?.error?.code;

@@ -1,5 +1,5 @@
 import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http.js';
-import { YAHOO, barsOf, quoteOf, symbol, type YahooResult } from '../_lib/yahoo.js';
+import { YAHOO, YAHOO_UA, barsOf, quoteOf, symbol, type YahooResult } from '../_lib/yahoo.js';
 
 // GET /api/quote/spark?symbols=^GSPC,^IXIC,SPY
 // Last price, previous close and today's sparkline for up to 20 symbols in one call.
@@ -17,7 +17,7 @@ export default proxy(async (req, res) => {
   if (symbols.length > MAX) throw new ProxyError(400, 'bad_request', `Send at most ${MAX} symbols.`);
 
   const url = `${YAHOO}/v8/finance/spark?symbols=${symbols.map(encodeURIComponent).join(',')}&range=1d&interval=5m`;
-  const data = await fetchJson<SparkResponse>({ name: 'Yahoo Finance', url });
+  const data = await fetchJson<SparkResponse>({ name: 'Yahoo Finance', url, userAgent: YAHOO_UA });
   const now = Date.now();
 
   // Yahoo has served this endpoint in two shapes; read whichever arrives.

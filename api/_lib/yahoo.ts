@@ -5,6 +5,8 @@ import { ProxyError } from './http.js';
 // docs/data-sources.md records what was verified and when.
 
 export const YAHOO = 'https://query1.finance.yahoo.com';
+/** Yahoo turns away clients that do not look like a browser (and, as of November 2026, most that do). */
+export const YAHOO_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 /** Tickers as Yahoo writes them: SPY, BRK-B, ^GSPC, GC=F, EURUSD=X. Nothing else gets through. */
 const SYMBOL = /^[A-Z0-9^][A-Z0-9.\-=^]{0,14}$/;
