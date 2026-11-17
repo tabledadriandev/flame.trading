@@ -1182,3 +1182,73 @@
   display: flex;
   justify-content: flex-end;
 }
+
+/* ---------- Outcome cone ---------- */
+
+.cone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line);
+}
+
+.cone-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.cone-head .seg {
+  margin-left: auto;
+}
+
+.cone-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--t-12);
+}
+
+/* The cone is a range of prices, not a direction: ink, never hot or cold. */
+.cone-band {
+  fill: var(--ink);
+  opacity: 0.12;
+}
+
+.cone-median {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.cone-now {
+  stroke: var(--ink-2);
+  stroke-dasharray: 3 3;
+}
+
+.cone-mid {
+  fill: var(--ink);
+  font-weight: 600;
+}
+
+.cone-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  font-size: var(--t-12);
+}
+
+.cone-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.cone-facts dt {
+  color: var(--ink-2);
+}
+
+.cone-facts dd {
+  margin: 0;
+}

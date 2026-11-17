@@ -320,6 +320,15 @@ export function Chart(props: ChartProps) {
       s.main.update(bar(last) as never);
       s.vol?.update(volBar(last));
       s.byTime.set(toChartTime(last.t), candles[candles.length - 1]!);
+    } else if (sameSeries && d.len + 1 === data.length && data[data.length - 2]!.t === d.last) {
+      // Exactly one new bar on the right (a new live bar, or a step in Replay).
+      const prev = data[data.length - 2]!;
+      s.main.update(bar(prev) as never);
+      s.vol?.update(volBar(prev));
+      s.main.update(bar(last) as never);
+      s.vol?.update(volBar(last));
+      s.byTime.set(toChartTime(prev.t), candles[candles.length - 2]!);
+      s.byTime.set(toChartTime(last.t), candles[candles.length - 1]!);
     } else {
       const prepended = d && d.key === dataKey && d.type === type && d.last === last.t && d.first > first.t ? data.length - d.len : 0;
       const range = prepended > 0 ? chart.timeScale().getVisibleLogicalRange() : null;

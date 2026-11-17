@@ -1,5 +1,6 @@
 import type { Account } from '../engine/types';
-import { useAccount } from './account';
+import { registerSnapshot, useAccount } from './account';
+import { recentCloses } from '../chart/useCandles';
 import { seedClock } from './clock';
 import { setFrameErrorHandler } from '../data/schedule';
 import { SIM } from '../lib/env';
@@ -106,6 +107,8 @@ export async function boot(): Promise<void> {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void flush();
   });
+
+  registerSnapshot((id) => recentCloses(id));
 
   let warned = false;
   setFrameErrorHandler(() => {

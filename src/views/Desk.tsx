@@ -7,12 +7,21 @@ import { Ticket } from '../desk/Ticket';
 import { Watchlist } from '../desk/Watchlist';
 import { useMedia, useSize } from '../lib/hooks';
 import { useLayout } from '../state/layout';
+import { useMarket } from '../state/market';
+import { useReplaySeed } from '../state/replay';
 import { useTicket } from '../state/ticket';
 import { Divider } from '../ui/Divider';
 
 // The desk is the terminal itself: every pane a trader needs on one screen.
 // Every divider drags and the sizes persist. On a phone the panes become a
 // swipeable stack.
+
+/** "Replay from here" on the chart: open Replay at that bar, same instrument and timeframe. */
+function replayFrom(t: number): void {
+  const m = useMarket.getState();
+  useReplaySeed.getState().set({ instrument: m.instrument, tf: m.tf === '1w' ? '1d' : m.tf, t });
+  window.location.hash = 'replay';
+}
 
 function WideDesk() {
   const sizes = useLayout((s) => s.sizes);
@@ -36,7 +45,7 @@ function WideDesk() {
       }
     >
       <Watchlist />
-      <ChartPane />
+      <ChartPane onReplay={replayFrom} />
       <div className="book-col" ref={col}>
         <Book />
         <Divider
@@ -106,7 +115,7 @@ function PhoneDesk() {
         }}
       >
         <div className="phone-page" role="tabpanel" aria-label="Chart">
-          <ChartPane />
+          <ChartPane onReplay={replayFrom} />
         </div>
         <div className="phone-page" role="tabpanel" aria-label="Ticket">
           <Ticket />

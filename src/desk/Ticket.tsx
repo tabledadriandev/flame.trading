@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { instrument } from '../data/instruments';
 import { rulesFor } from '../engine/rules';
-import { posKey, type OrderInput, type OrderType, type Side } from '../engine/types';
+import { posKey, type OrderInput, type OrderType, type Quote, type Side } from '../engine/types';
 import { dollars, money, parseNumber, price as fmtPrice, qty as fmtQty, rr } from '../lib/format';
 import { useMedia } from '../lib/hooks';
-import { useAccount } from '../state/account';
+import { useAccount, type Book } from '../state/account';
 import { useQuoteSlow, useValuation } from '../state/hooks';
 import { fillBasis, quoteFor } from '../state/live';
 import { route } from '../data/feed';
@@ -14,6 +14,7 @@ import { useTicket, type SizeMode } from '../state/ticket';
 import { Dialog, Help, NumField, Pane, PaneState, Segmented } from '../ui/controls';
 import { FeedBadge } from '../ui/FeedBadge';
 import { maxQty, previewTicket } from './ticketMath';
+import { ConePanel } from './Cone';
 
 const trim = (n: number, d = 8): string => String(parseFloat(n.toFixed(d)));
 
@@ -57,16 +58,33 @@ function HoldButton({ label, onConfirm, disabled, side }: { label: string; onCon
   );
 }
 
-export function Ticket() {
-  const id = useMarket((s) => s.instrument);
+export interface TicketProps {
+  /** The practice account in Replay; the live paper account otherwise. */
+  book?: Book;
+  /** Defaults to the instrument on the desk. */
+  instrumentId?: string;
+  /** Replay supplies its own price (the bar being replayed); the desk uses the live feed. */
+  getQuote?: (id: string) => Quote | undefined;
+  /** Changes whenever getQuote would answer differently. */
+  pulse?: number;
+  badge?: React.ReactNode;
+  /** Extra content under the preview, such as the outcome cone. */
+  children?: React.ReactNode;
+}
+
+export function Ticket({ book = 'live', instrumentId, getQuote, pulse, badge }: TicketProps = {}) {
+  const deskId = useMarket((s) => s.instrument);
+  const id = instrumentId ?? deskId;
   const select = useMarket((s) => s.select);
   const i = instrument(id);
   const info = useQuoteSlow(id);
   const t = useTicket();
-  const live = useAccount((s) => s.live);
+  const live = useAccount((s) => s[book]);
   const place = useAccount((s) => s.place);
   const settings = useSettings();
-  const value = useValuation('live');
+  const priceNow = (): Quote | undefined => (getQuote ? getQuote(id) : quoteFor(id));
+  const replayMark = getQuote ? getQuote(id)?.last : undefined;
+  const value = useValuation(book, getQuote ? { [id]: replayMark } : undefined);
   const touch = useMedia('(pointer: coarse)');
   const [confirming, setConfirming] = useState(false);
   const sizeRef = useRef<HTMLInputElement>(null);
@@ -86,7 +104,7 @@ export function Ticket() {
     el?.select();
   }, [t.focus]);
 
-  const quote = useMemo(() => quoteFor(id), [id, info]);
+  const quote = useMemo(() => priceNow(), [id, info, pulse]);
   const preview = previewTicket({
     symbol: i.symbol,
     cls: i.cls,
@@ -148,7 +166,9 @@ export function Ticket() {
   const send = () => {
     setConfirming(false);
     if (preview.problem || !(preview.qty > 0)) return;
-    place(input(), quoteFor(id));
+    const q = priceNow();
+    // In Replay, the order happens at the replayed bar's time, not at today's.
+    place(input(), q, book, getQuote ? q?.t : undefined);
   };
   const submit = () => {
     if (preview.problem || !(preview.qty > 0)) return;
@@ -162,7 +182,7 @@ export function Ticket() {
   const showBrackets = !(t.mode === 'spot' && t.side === 'sell');
 
   return (
-    <Pane label="Order ticket" title="Ticket" className="pane-ticket" tools={<FeedBadge instrumentId={id} />}>
+    <Pane label="Order ticket" title="Ticket" className="pane-ticket" tools={badge ?? <FeedBadge instrumentId={id} />}>
       <form
         className="pane-body ticket"
         onSubmit={(e) => {
@@ -334,7 +354,7 @@ export function Ticket() {
         <div className="ticket-preview" id="ticket-preview">
           {preview.problem ? <span className={preview.incomplete ? 'ticket-hint' : 'ticket-problem'}>{preview.problem}</span> : preview.sentence}
           {!preview.problem && closedMarket ? ' The market is closed; the order waits for the open.' : ''}
-          {!preview.problem && t.type !== 'limit' && route(id)?.adapter.hasBook && fillBasis(id) === 'last'
+          {!preview.problem && !getQuote && t.type !== 'limit' && route(id)?.adapter.hasBook && fillBasis(id) === 'last'
             ? ' The order book is not synced right now, so this fills at the last price plus one basis point instead of walking the book.'
             : ''}
         </div>
@@ -348,6 +368,8 @@ export function Ticket() {
           </button>
         )}
 
+        {!getQuote ? <ConePanel instrumentId={id} side={t.side} qty={preview.qty} entry={preview.est} feeRate={preview.notional > 0 ? preview.fee / preview.notional : 0} stop={parseNumber(t.sl)} target={parseNumber(t.tp)} /> : null}
+
         <dl className="ticket-facts num">
           <div>
             <dt>Cash</dt>
@@ -357,7 +379,7 @@ export function Ticket() {
             <div>
               <dt>Holding</dt>
               <dd>
-                {fmtQty(held, info?.last ?? 1)} {i.symbol}
+                {fmtQty(held, quote?.last ?? 1)} {i.symbol}
               </dd>
             </div>
           ) : null}

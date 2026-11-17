@@ -8,6 +8,13 @@ import { FeedError, tfMs, type Candle, type Timeframe } from '../data/types';
 
 const cache = new Map<string, Candle[]>();
 
+/** The last `n` closes of whatever chart is loaded for this instrument (the most recently viewed timeframe). */
+export function recentCloses(instrumentId: string, n = 60): number[] | undefined {
+  let found: Candle[] | undefined;
+  for (const [key, bars] of cache) if (key.startsWith(`${instrumentId}|`)) found = bars;
+  return found && found.length > 1 ? found.slice(-n).map((c) => c.c) : undefined;
+}
+
 export interface CandleFeed {
   candles: Candle[];
   state: 'loading' | 'ready' | 'failed';

@@ -26,7 +26,7 @@ import {
 import { dollars, money, qty, rr } from '../lib/format';
 import { lastPrice } from './clock';
 import { save } from './persist';
-import { engineSettings } from './settings';
+import { engineSettings, useSettings } from './settings';
 import { toast } from './toasts';
 
 // Two paper accounts: the live one, which persists, and a practice one that
@@ -57,6 +57,30 @@ interface AccountStore {
   replace(a: Account): void;
 }
 
+// The chart registers how to read the bars it has loaded, for the entry snapshot.
+let snapshotOf: ((instrumentId: string) => number[] | undefined) | null = null;
+export function registerSnapshot(fn: (instrumentId: string) => number[] | undefined): void {
+  snapshotOf = fn;
+}
+
+let audio: AudioContext | null = null;
+/** A short, quiet tick when an order fills. Off unless switched on in settings. */
+function tick(): void {
+  try {
+    audio ??= new AudioContext();
+    const osc = audio.createOscillator();
+    const gain = audio.createGain();
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.05, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.12);
+    osc.connect(gain).connect(audio.destination);
+    osc.start();
+    osc.stop(audio.currentTime + 0.12);
+  } catch (err) {
+    console.warn('[flame] could not play the fill sound', err);
+  }
+}
+
 // live.ts registers how to read the current price, so this file does not import it (it imports this one).
 let liveQuote: ((instrumentId: string) => Quote | undefined) | null = null;
 export function registerLiveQuote(fn: (instrumentId: string) => Quote | undefined): void {
@@ -73,10 +97,20 @@ function persist(a: Account): void {
 
 export const useAccount = create<AccountStore>((set, get) => {
   const commit = (book: Book, r: Result, quiet = false): EngineEvent[] => {
-    if (r.account !== get()[book]) {
-      set({ [book]: r.account } as Pick<AccountStore, Book>);
-      if (book === 'live') persist(r.account);
+    let account = r.account;
+    // A trade's first fill keeps a small picture of the chart as it looked then, for the journal.
+    for (const e of r.events) {
+      if (e.type !== 'fill') continue;
+      const tr = account.trades.find((t) => t.id === e.fill.tradeId);
+      if (!tr || tr.snapshot || tr.fillIds.length !== 1) continue;
+      const closes = snapshotOf?.(e.fill.instrument);
+      if (closes && closes.length > 1) account = snapshotTrade(account, tr.id, closes);
     }
+    if (account !== get()[book]) {
+      set({ [book]: account } as Pick<AccountStore, Book>);
+      if (book === 'live') persist(account);
+    }
+    if (!quiet && useSettings.getState().sounds && r.events.some((e) => e.type === 'fill')) tick();
     if (!quiet) announce(r.events, book);
     return r.events;
   };

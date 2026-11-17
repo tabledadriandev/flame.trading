@@ -10,18 +10,21 @@ import { useQuoteSlow } from '../state/hooks';
 import { quoteFor } from '../state/live';
 import { useMarket } from '../state/market';
 import { engineSettings } from '../state/settings';
+import { toast } from '../state/toasts';
 import { Help, PaneState, SideTag, Tabs, type TabDef } from '../ui/controls';
 
 export type DrawerTab = 'positions' | 'orders' | 'fills' | 'journal';
 
 const modeName = (p: { cls: string; mode: string }): string => (p.mode === 'spot' ? 'Spot' : p.cls === 'crypto' ? 'Perp' : 'Margin');
 
-function PositionRow({ p, book, quote }: { p: Position; book: Book; quote: (id: string) => ReturnType<typeof quoteFor> }) {
+function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quote: (id: string) => ReturnType<typeof quoteFor>; replay: boolean }) {
   const account = useAccount((s) => s[book]);
   const place = useAccount((s) => s.place);
   const brackets = useAccount((s) => s.brackets);
   const select = useMarket((s) => s.select);
-  const q = useQuoteSlow(p.instrument, 400);
+  const liveQuote = useQuoteSlow(p.instrument, 400);
+  // In Replay the mark is the bar being replayed, never the live price.
+  const q = replay ? quote(p.instrument) : liveQuote;
   const i = instrument(p.instrument);
   const mark = q?.last ?? p.entry;
   const u = unrealised(p, mark);
@@ -36,9 +39,13 @@ function PositionRow({ p, book, quote }: { p: Position; book: Book; quote: (id: 
   return (
     <tr>
       <td className="l">
-        <button type="button" className="link" onClick={() => select(p.instrument)} title={`Show ${i.symbol} on the desk`}>
-          {i.symbol}
-        </button>{' '}
+        {replay ? (
+          <strong>{i.symbol}</strong>
+        ) : (
+          <button type="button" className="link" onClick={() => select(p.instrument)} title={`Show ${i.symbol} on the desk`}>
+            {i.symbol}
+          </button>
+        )}{' '}
         <span className="sub">
           {modeName(p)}
           {p.mode === 'lev' ? ` ${effectiveLeverage(p).toFixed(effectiveLeverage(p) % 1 ? 1 : 0)}×` : ''}
@@ -63,7 +70,8 @@ function PositionRow({ p, book, quote }: { p: Position; book: Book; quote: (id: 
             className="btn btn-sm"
             onClick={() => {
               const input = closeInput(account, p.key);
-              if (input) place(input, quote(p.instrument), book);
+              const at = quote(p.instrument);
+              if (input) place(input, at, book, replay ? at?.t : undefined);
             }}
           >
             Close
@@ -75,7 +83,8 @@ function PositionRow({ p, book, quote }: { p: Position; book: Book; quote: (id: 
               title="Close this position and open the same size the other way"
               onClick={() => {
                 const input = reverseInput(account, p.key, effectiveLeverage(p));
-                if (input) place(input, quote(p.instrument), book);
+                const at = quote(p.instrument);
+                if (input) place(input, at, book, replay ? at?.t : undefined);
               }}
             >
               Reverse
@@ -86,7 +95,12 @@ function PositionRow({ p, book, quote }: { p: Position; book: Book; quote: (id: 
             className="btn btn-sm"
             disabled={atBreakeven}
             title="Move the stop-loss to your entry price, so the worst case is about break-even"
-            onClick={() => brackets(p.key, { sl: p.entry }, book)}
+            onClick={() => {
+              // Only possible while the price is on the profitable side of the entry.
+              const ok = p.dir === 'long' ? mark > p.entry : mark < p.entry;
+              if (ok) brackets(p.key, { sl: p.entry }, book, replay ? q?.t : undefined);
+              else toast('The stop can move to your entry only once the trade is in profit; right now it would trigger at once.');
+            }}
           >
             Stop to entry
           </button>
@@ -96,7 +110,7 @@ function PositionRow({ p, book, quote }: { p: Position; book: Book; quote: (id: 
   );
 }
 
-function OrderRow({ o, book }: { o: Order; book: Book }) {
+function OrderRow({ o, book, quote, replay }: { o: Order; book: Book; quote: (id: string) => ReturnType<typeof quoteFor>; replay: boolean }) {
   const cancel = useAccount((s) => s.cancel);
   const amend = useAccount((s) => s.amend);
   const [editing, setEditing] = useState<string | null>(null);
@@ -105,7 +119,7 @@ function OrderRow({ o, book }: { o: Order; book: Book }) {
   const kind = o.role === 'tp' ? 'Take-profit' : o.role === 'sl' ? 'Stop-loss' : o.type === 'limit' ? 'Limit' : o.type === 'stop' ? 'Stop' : 'Market';
   const save = () => {
     const n = parseNumber(editing ?? '');
-    if (n > 0) amend(o.id, o.limit !== undefined ? { limit: n } : { stop: n }, book);
+    if (n > 0) amend(o.id, o.limit !== undefined ? { limit: n } : { stop: n }, book, replay ? quote(o.instrument) : undefined);
     setEditing(null);
   };
   return (
@@ -186,7 +200,7 @@ function FillRow({ f }: { f: Fill }) {
   );
 }
 
-export function DrawerBody({ tab, book = 'live', quote = quoteFor, journal }: { tab: DrawerTab; book?: Book; quote?: (id: string) => ReturnType<typeof quoteFor>; journal?: React.ReactNode }) {
+export function DrawerBody({ tab, book = 'live', quote = quoteFor, journal, replay = false }: { tab: DrawerTab; book?: Book; quote?: (id: string) => ReturnType<typeof quoteFor>; journal?: React.ReactNode; replay?: boolean }) {
   const account = useAccount((s) => s[book]);
   const positions = Object.values(account.positions);
   const orders = workingOrders(account);
@@ -223,7 +237,7 @@ export function DrawerBody({ tab, book = 'live', quote = quoteFor, journal }: { 
         </thead>
         <tbody>
           {positions.map((p) => (
-            <PositionRow key={p.key} p={p} book={book} quote={quote} />
+            <PositionRow key={p.key} p={p} book={book} quote={quote} replay={replay} />
           ))}
         </tbody>
       </table>
@@ -250,7 +264,7 @@ export function DrawerBody({ tab, book = 'live', quote = quoteFor, journal }: { 
         </thead>
         <tbody>
           {orders.map((o) => (
-            <OrderRow key={o.id} o={o} book={book} />
+            <OrderRow key={o.id} o={o} book={book} quote={quote} replay={replay} />
           ))}
         </tbody>
       </table>
@@ -317,7 +331,7 @@ export function Drawer({ book = 'live', quote }: { book?: Book; quote?: (id: str
         <Tabs label="Account" tabs={drawerTabs(positions, orders, waiting)} value={tab} onChange={setTab} />
       </header>
       <div className="pane-body" role="tabpanel">
-        <DrawerBody tab={tab} book={book} {...(quote ? { quote } : {})} journal={<ToReview book={book} />} />
+        <DrawerBody tab={tab} book={book} {...(quote ? { quote, replay: true } : {})} journal={<ToReview book={book} />} />
       </div>
     </section>
   );

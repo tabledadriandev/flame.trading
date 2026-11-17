@@ -9,8 +9,10 @@ import {
   NotebookPen,
   Percent,
   Search,
+  Settings as SettingsIcon,
   Sun,
   Waves,
+  WifiOff,
   type LucideIcon,
 } from 'lucide-react';
 import { Mark } from './Mark';
@@ -23,8 +25,10 @@ import { useAccount } from '../state/account';
 import { Toasts } from '../ui/Toasts';
 import { Help } from '../ui/controls';
 import { usePalette } from '../state/palette';
+import { useMarket } from '../state/market';
 import { useLayout } from '../state/layout';
 import { Palette } from './Palette';
+import { Settings } from './Settings';
 import { useGlobalKeys } from './keys';
 
 function AccountBadge() {
@@ -62,6 +66,8 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
   const [theme, setTheme] = useState(() => resolvedTheme(readTheme()));
 
   const zen = useLayout((s) => s.zen) && view === 'desk';
+  const [settings, setSettings] = useState(false);
+  const online = useMarket((s) => s.online);
   useEffect(() => {
     document.title = `Flame: ${NAV.find((n) => n.id === view)?.label ?? 'Desk'}`;
   }, [view]);
@@ -96,12 +102,21 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
           Search a stock, index or coin
           <kbd>{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
+        {!online ? (
+          <span className="status" data-level="warn" role="status" title="This device is offline. Prices and order fills are paused; your journal and history still work. Everything resumes when the connection returns.">
+            <WifiOff size={11} aria-hidden="true" />
+            Offline: feeds paused
+          </span>
+        ) : null}
         {SIM ? (
           <span className="status" data-level="warn" title="Every price on screen is made up. Remove ?sim=1 from the address to see real markets.">
             Simulated feed
           </span>
         ) : null}
         <AccountBadge />
+        <button type="button" className="theme-toggle" onClick={() => setSettings(true)} aria-label="Settings" title="Settings">
+          <SettingsIcon size={15} aria-hidden="true" />
+        </button>
         <button
           type="button"
           className="theme-toggle"
@@ -117,6 +132,7 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
         {children}
       </main>
       <Palette />
+      {settings ? <Settings onClose={() => setSettings(false)} /> : null}
       <Toasts />
     </div>
   );

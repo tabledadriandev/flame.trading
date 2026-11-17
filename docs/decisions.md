@@ -55,3 +55,21 @@ Notable choices made while building Flame, newest last. Each has the reason, so 
 **Clocks do not use hot or cold.** An open exchange is said with the word "Open", a bolder weight and a rule along the top of its tile. Open or closed is not buying or selling pressure.
 
 **`consistent-ui` runs once, in Phase 6.** It compares every surface against every other; with one finished view there is nothing to compare. The desk was checked against the design system by the design critique instead.
+
+**Lab strategies are long only and fill at the next bar's open.** A rule decides on a bar's close and trades on the next open, so it cannot use a price it had not seen. Shorting would double the surface of every strategy for a first version whose job is to teach the out-of-sample habit.
+
+**The out-of-sample check tunes by total return over a small grid** (three values per parameter, 8 to 27 combinations). A larger search would overfit harder and take longer; the point is to show whether tuning carries forward, not to find the best parameters.
+
+**"Fixed risk" sizing in the Lab puts the stop two ATRs below the entry.** The built-in rules have no stop of their own, and risk sizing needs one to be defined.
+
+**The outcome cone checks stops and targets at each day's close.** It is built from daily returns, so it cannot see inside a day. The help text says so. A stop that would have been touched intraday and recovered by the close is counted as not hit, which flatters stops slightly.
+
+**Replay fills at the close of the bar on screen.** With no book or tape in history, a market order placed while paused fills at that bar's close, one basis point against you; working orders are walked along the next bar's assumed path like any other bar evaluation.
+
+**Ending a replay closes open positions at the last price.** Otherwise the review would have to describe unrealised results, and "what you did" would not have a number.
+
+**Chart snapshots are the closes of the last 60 bars on the chart at the first fill.** A small sparkline is enough to remember the setup by, and it costs a few hundred bytes per trade instead of an image.
+
+**Settings is a dialog behind a gear in the top bar,** not a ninth view: it is visited rarely and should not take a place in the rail.
+
+**Sounds default to off and are one short tick on a fill.** Nothing else makes a sound.

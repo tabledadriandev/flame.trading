@@ -56,15 +56,16 @@ Also in this phase, from the review of the data and state layers:
 - [x] Markets view: session clocks, boards, movers, and the strip of today's moves (the index and commodity boards show "These quotes are not available" until the source is fixed)
 - [ ] Acceptance item 5. Blocked on the same thing
 
-## Phase 4: learning tools
+## Phase 4: learning tools (done 17 November 2026)
 
-- [ ] Journal: review form on close, tags, notes, chart snapshot
-- [ ] Stats: expectancy, profit factor, drawdown, R distribution, slices by tag and time
-- [ ] Export and import
-- [ ] Outcome cone in the ticket
-- [ ] Replay with the practice account
-- [ ] Lab: four built-in strategies, costs, out-of-sample check
-- [ ] Acceptance items 6, 7 and 9
+- [x] Journal: review form on close, tags, notes, chart snapshot
+- [x] Stats: expectancy, profit factor, drawdown, R distribution, slices by tag and time; the weekly review card
+- [x] Export and import (JSON backup, CSV of trades), and the account reset, in Settings
+- [x] Outcome cone in the ticket ("If you hold")
+- [x] Replay with the practice account
+- [x] Lab: four built-in strategies, costs, out-of-sample check
+- [x] Settings: theme, fees, default risk, confirm-before-order, sounds, fill-at-last-close
+- [x] Acceptance items 6, 7 and 9
 
 ## Phase 5: depth
 
