@@ -91,7 +91,7 @@ Adrian asked for options, memecoins, stocks and "everything", and for a better f
 - [ ] Stocks and ETFs live through Alpaca behind the existing `/api/quote` shape. **Needs `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` in Vercel, which Adrian adds himself.** The upstream is written (`api/_lib/alpaca.ts`) but unverified; still to do once the key exists: one real call, the "IEX" and "Delayed 15 min" labels, in-flight request coalescing, and serving the cached value marked stale when the budget is spent
 - [ ] Markets boards filled with labelled ETF proxies for indices, commodities, rates and currencies (the index and commodity boards exist and wait on the key; rates and currency proxies are not added yet); real currency pairs if a Twelve Data key is added
 - [ ] Stock and ETF options on Alpaca's indicative feed
-- [ ] Option strategy templates: vertical spread, covered call, cash-secured put, straddle, strangle
+- [x] Option strategy templates: call and put spreads, straddle, strangle, covered call, cash-secured put, on the Deribit chain ("What to trade" above the option ticket). They will work on stock options unchanged once that chain exists
 - [ ] Acceptance items 10 to 17. State on 17 November 2026, all checked on flame.trading unless it says otherwise:
   - 10 (icon): done. Adrian chose it; checked at 16 px on light and dark tab bars on the preview sheet, and the new `icon.svg` is what the site serves
   - 11 (AAPL): waits on the Alpaca key

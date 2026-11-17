@@ -56,6 +56,8 @@ export async function catchUp(since: number): Promise<void> {
     // Options have no candles to replay. What matters for them is expiry, which is settled separately
     // (state/options.ts) at the venue's own settlement price, however long Flame was closed.
     if (instrument(id).cls === 'option') continue;
+    // A token has no resting orders, stops or liquidation: there is nothing a replay could trigger.
+    if (instrument(id).cls === 'meme') continue;
     const r = route(id);
     if (!r) {
       failed.push(instrument(id).symbol);

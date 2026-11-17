@@ -11,6 +11,8 @@ import { useMedia, useNow } from '../lib/hooks';
 import { greeks } from '../options/bs';
 import { expiryText, optionName, optionSymbol, venueName, yearsTo } from '../options/contract';
 import { Payoff } from '../options/PayoffChart';
+import { STRATEGIES, type StrategyId } from '../options/strategies';
+import { OptionStrategy } from './OptionStrategy';
 import { chanceOfProfit, positionGreeks, summarise, type Leg } from '../options/payoff';
 import { closeInput, useAccount } from '../state/account';
 import { quoteFor, watch } from '../state/live';
@@ -539,6 +541,7 @@ export function Options() {
   const [all, setAll] = useState(false);
   const [kind, setKind] = useState<'call' | 'put'>('call');
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<'single' | StrategyId>('single');
   const narrow = useMedia('(max-width: 760px)');
   const now = useNow(30_000);
   const ticket = useRef<HTMLDivElement>(null);
@@ -584,6 +587,8 @@ export function Options() {
 
   function choose(p: Pick) {
     setPick(p);
+    // Picking a price in the chain is always about one contract.
+    setMode('single');
     if (narrow) requestAnimationFrame(() => ticket.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
   }
 
@@ -668,7 +673,22 @@ export function Options() {
           </section>
 
           <div className="opt-side" ref={ticket}>
-            {picked && pick ? (
+            <label className="field opt-mode">
+              <span className="field-label">What to trade</span>
+              <span className="field-box">
+                <select value={mode} onChange={(e) => setMode(e.target.value as 'single' | StrategyId)}>
+                  <option value="single">One contract, picked from the chain</option>
+                  {STRATEGIES.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            </label>
+            {mode !== 'single' ? (
+              <OptionStrategy key={mode} id={mode} rows={rows} chainIndex={chain.index} chainAt={chain.t} />
+            ) : picked && pick ? (
               <Ticket key={picked.id} row={picked} side={pick.side} onSide={(side) => setPick({ id: picked.id, side })} chainIndex={chain.index} chainAt={chain.t} />
             ) : (
               <PaneState title="Pick a contract">Click an ask price in the chain to buy that option, or a bid to sell it. The ticket shows what it costs, the most you can lose and make, and the payoff.</PaneState>

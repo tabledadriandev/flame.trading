@@ -260,6 +260,29 @@
   scroll-margin-top: var(--s-2);
 }
 
+.opt-mode {
+  padding: var(--s-3) var(--s-4) 0;
+}
+
+.opt-legs {
+  margin: 0 calc(-1 * var(--s-4));
+  width: calc(100% + 2 * var(--s-4));
+}
+
+.opt-legs th {
+  position: static;
+}
+
+.opt-legs td:first-child,
+.opt-legs th:first-child {
+  padding-left: var(--s-4);
+}
+
+.opt-legs td:last-child,
+.opt-legs th:last-child {
+  padding-right: var(--s-4);
+}
+
 .opt-ticket {
   display: flex;
   flex-direction: column;
