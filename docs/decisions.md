@@ -95,3 +95,24 @@ Notable choices made while building Flame, newest last. Each has the reason, so 
 **Classic colours were re-chosen with the validator.** The pair in the design document failed: a deuteranope sees them 2.9 apart on a scale where 8 is the target. The shipped pair differs in lightness as well as hue (see `docs/design-system.md`).
 
 **The flame in the mark has its own token.** Otherwise the logo turned green in Classic.
+
+## Desk columns give way on narrow windows (17 November 2026)
+
+At 1024 px wide the stored column widths left the chart 145 px. `fitSizes` in `src/state/layout.ts` now eases the watchlist, book and ticket in proportion, never below their minimums, so the chart keeps at least 36% of the desk (and at least 320 px). The stored sizes are untouched, so a wide window gets the trader's layout back. Below 1000 px the minimum columns and a usable chart cannot both fit, so the desk becomes the swipeable stack there, not only on phones. The shell keeps its own breakpoint (860 px) for turning the rail into a bottom bar.
+
+## Target sizes (17 November 2026)
+
+Touch-sized rows and controls apply wherever the pointer is coarse, not only on narrow screens, so a tablet in landscape gets them. On a fine pointer the ladder keeps 20 px rows: density is the point of a ladder, every row is reachable by keyboard, and WCAG 2.1 AA sets no minimum. This falls short of WCAG 2.2's 24 px target rule and is accepted knowingly.
+
+## Roadmap section lost and restored (17 November 2026)
+
+The Phase 5 commit (`8d8c2f8`) rewrote `docs/roadmap.md` from an older copy and dropped the Phase 5B section that brief 02 had added. It was restored from `4702047` the same day. The brief itself (`docs/brief-02-every-market.md`) was never lost.
+
+## Security fixes (17 November 2026)
+
+The proxies accept only the parameters each endpoint defines, because any extra parameter made a new cache key and so a free pass round the edge cache to the upstream. Cross-site browser requests are refused by `Sec-Fetch-Site`, which stops other sites using Flame's data allowance from a visitor's browser; it does not stop a script, which is what the per-address limit and the per-upstream budget are for. The in-function limit is per instance, so it is a brake and not a guarantee: the hard limit belongs in Vercel's firewall, which is Adrian's setting to make.
+
+## Outcome cone exits at the close (17 November 2026)
+
+Stops and targets are still checked at each day's close (the cone is built from daily returns), so an intraday touch that recovers is still missed. What changed after the review: a path that is past its stop or target at a close is booked at that close, not at the stop or target price. Booking at the level pretended a fill the data could not support, and a day that gaps through a stop now costs more than the stop, as it would.
+

@@ -48,13 +48,13 @@ Also in this phase, from the review of the data and state layers:
 - [x] Chart levels and price alerts (pulled forward from Phase 5)
 - [x] Acceptance items 2 and 3 on flame.trading. Item 8: the phone layout and the hold-to-confirm button are checked at phone width in a desktop browser; installing from Safari on a real iPhone still needs Adrian's phone
 
-## Phase 3: stocks and the markets board (built; blocked on a data source)
+## Phase 3: stocks and the markets board (built; waiting on Adrian's data key)
 
 - [x] `/api/quote/chart`, `/spark`, `/search` with validation and caching; verified from the deployed site
-- [x] Symbol search across crypto and stocks (crypto is live; the stock half reports that its source is not answering)
-- [ ] Stocks on the desk with the "Delayed" label, spot and margin. **Built and working with the simulated feed, but no live data:** Yahoo refuses Flame's server (and Adrian's Mac) with 429, and the documented fallbacks are behind browser challenges. See "Status on 17 November 2026" in `docs/data-sources.md`. Needs a data key from Adrian
-- [x] Markets view: session clocks, boards, movers, and the strip of today's moves (the index and commodity boards show "These quotes are not available" until the source is fixed)
-- [ ] Acceptance item 5. Blocked on the same thing
+- [x] Symbol search across crypto and stocks (crypto is live; the stock half says its source is not switched on)
+- [ ] Stocks on the desk with the "Delayed" label, spot and margin. **Built against Alpaca's market data API from its documentation and working with the simulated feed, but never called for real:** the proxy answers `503 no_source` until `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` exist in Vercel. Yahoo, Stooq and Cboe turned out to be unusable; see `docs/data-sources.md`
+- [x] Markets view: session clocks, boards, movers, and the strip of today's moves (the index and commodity boards are ETF proxies on the same key, and say "These quotes are not available" until it exists)
+- [ ] Acceptance item 5. Waiting on the same key
 
 ## Phase 4: learning tools (done 17 November 2026)
 
@@ -78,13 +78,31 @@ Also in this phase, from the review of the data and state layers:
 - [x] Classic green/red colour option, validated
 - [x] Perp funding: Hyperliquid's hourly rate, applied to open crypto perp positions once an hour while Flame is open
 
+## Phase 5B: every market, and a new favicon (added 17 November 2026)
+
+Adrian asked for options, memecoins, stocks and "everything", and for a better favicon. The full brief, with engine rules, data sources and acceptance checks 10 to 17, is `docs/brief-02-every-market.md`. Read it before starting any item here. Work in the order the brief gives: favicon, crypto options, memecoins, stocks and the rest once the key exists, stock options, then Phase 6 over everything.
+
+- [ ] Favicon and app icon: at least four candidates on one preview sheet, Adrian picks, ship to every size and to `src/shell/Mark.tsx`. **In progress: waiting for Adrian's pick from the sheet**
+- [ ] `src/options/bs.ts`: Black-Scholes price, greeks and implied-volatility solver, unit-tested
+- [ ] Engine: option positions (long, covered call, cash-secured put, defined-risk spreads), cash settlement at expiry through the catch-up path, fees. A test for every rule in the brief
+- [ ] Crypto options from Deribit: verify the public API and CORS, adapter, chain view, ticket, payoff chart, position greeks
+- [ ] Engine: pool fills on the constant-product curve, the 2% of liquidity cap, marking at what the pool would pay, the "rugged" tag
+- [ ] Memecoins: verify DexScreener, GeckoTerminal and a risk source; Launchpad view; token on the desk with the Pool pane
+- [ ] Stocks and ETFs live through Alpaca behind the existing `/api/quote` shape. **Needs `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` in Vercel, which Adrian adds himself.** The upstream is written (`api/_lib/alpaca.ts`) but unverified; still to do once the key exists: one real call, the "IEX" and "Delayed 15 min" labels, in-flight request coalescing, and serving the cached value marked stale when the budget is spent
+- [ ] Markets boards filled with labelled ETF proxies for indices, commodities, rates and currencies (the index and commodity boards exist and wait on the key; rates and currency proxies are not added yet); real currency pairs if a Twelve Data key is added
+- [ ] Stock and ETF options on Alpaca's indicative feed
+- [ ] Option strategy templates: vertical spread, covered call, cash-secured put, straddle, strangle
+- [ ] Acceptance items 10 to 17
+
 ## Phase 6: reviews before telling anyone
 
-- [ ] Design critique of every view in both themes and at phone width
-- [ ] Accessibility review (keyboard, focus, contrast, screen-reader names, reduced motion)
-- [ ] Security audit: the `/api` proxies (input validation, no open proxy, no SSRF), headers, dependencies
-- [ ] Performance pass against the budget in `CLAUDE.md`
-- [ ] A short "what is Flame" section for first-time visitors, and a plain disclaimer: paper trading, not financial advice, data may be delayed
+Brief 02 moved these to the end, over everything including Phase 5B. Work already done is recorded here so it is not repeated blind; views added in 5B still need every review.
+
+- [ ] Design critique of every view in both themes and at phone width. Done for the desk (Phase 2). A first pass over Markets, Flow, Odds, Replay, Lab, Journal and News on 17 November found and fixed the desk's chart being crushed on windows around 1024 px wide; the views have not had the full written critique
+- [ ] Accessibility review (keyboard, focus, contrast, screen-reader names, reduced motion). Done for the desk. An automated pass over the other views in both themes found no contrast failures, unnamed controls or unlabelled fields; fixed: help marks now have a 24 px target, one page heading per view. Keyboard-only and screen-reader passes on those views are still to do. Known and accepted: ladder rows are 20 px tall on a fine pointer (24 px on touch)
+- [x] Security audit: the `/api` proxies, headers, dependencies. Audit R1 found six issues (one Medium); five are fixed and verified in run R2 (quick verify), one Low remains open (build-time-only advisories through vite-plugin-pwa). The register is in `.security-audit/` and stays out of the public repo. Still for Adrian: a full verify and his sign-off, a Vercel Firewall rate-limit rule on `/api/*`, and whether to install scanners (coverage is "Reduced" without them). Re-audit after Phase 5B adds proxies
+- [ ] Performance pass against the budget in `CLAUDE.md` (main bundle is about 219 kB gzipped against the 400 kB limit; the 60 fps check is not done)
+- [x] A short "what is Flame" section for first-time visitors, and a plain disclaimer: paper trading, not financial advice, data may be delayed
 
 ## Later (needs a backend; decide with Adrian first)
 
@@ -115,10 +133,10 @@ npx vercel@latest domains add flame.trading flame --scope stefan-code-js-project
 
 Notes for the next session:
 
-- Last verified on flame.trading: acceptance items 1, 4, 6 and 7. Items 2 and 3 pass locally against live Binance data but were not re-run on the deployed site. Item 5 is blocked on a stock data source. Item 8 needs a real iPhone. Item 9 is unverified.
-- Commit `8fbed71` (feed batches fall back to a timer when animation frames stall) is deployed but the desk has not been looked at on flame.trading since. Open it and confirm the watchlist prices move.
-- The installed app updates through a prompt ("A new version of Flame is ready"); a tab opened before a deploy keeps the old build until reloaded.
-- Phase 6 has not been started: the cross-view design critique, accessibility review, `consistent-ui` sweep, security audit of `/api`, the performance pass and the first-visit introduction with the disclaimer are all still to do.
+- **Where work stands (17 November 2026):** Phases 1, 2, 4 and 5 are done and deployed. Phase 5B has started with the favicon: the candidates are on a preview sheet and nothing ships until Adrian picks one. Next after that, in the brief's order: crypto options (Deribit), memecoins, then stocks and stock options once the Alpaca key is in Vercel, then Phase 6.
+- Last verified on flame.trading: acceptance items 1, 4, 6 and 7, and the live desk under the Content-Security-Policy (prices moving, seven venues in the book). Items 2 and 3 pass locally against live Binance data but were not re-run on the deployed site. Item 5 waits on the Alpaca key. Item 8 needs a real iPhone. Item 9 (offline) is unverified.
+- The installed app updates through a prompt ("A new version of Flame is ready"); a tab opened before a deploy keeps the old build until reloaded, and tabs from before the prompt was added need closing once.
+- A new `/api` function must go through `proxy()` in `api/_lib/http.ts` (known parameters only, GET only, cross-site refusal, rate limit), import its neighbours with a `.js` suffix, and any new upstream host the browser calls directly must be added to `connect-src` in `vercel.json`.
 
 - The Vercel CLI on this Mac is logged in as `tabledadriandev`; `.vercel/` and `.env.local` are local only (ignored by git).
 - The Vercel connector in the chat cannot see this project (404). Use the CLI (`npx vercel@latest api …`) for project settings.
