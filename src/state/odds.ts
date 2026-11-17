@@ -55,10 +55,11 @@ export function startSettlement(): void {
     const pos = a.live.positions[posKey(id, 'spot')];
     const own = d.market.outcomes.find((o) => o.token === token);
     if (!pos || !own) return;
-    // A resolved market prices the winner at 1 and the others at 0. Anything in between is not settled yet.
-    if (own.price < 0.99 && own.price > 0.01) return;
-    const payout = own.price >= 0.99 ? 1 : 0;
+    // A resolved market pays each outcome its final price: $1 to the winner and $0 to the rest, or a split
+    // (50¢ each, say) when it resolves as a draw or as invalid. Whatever it is, the position ends here.
+    const payout = own.price >= 0.99 ? 1 : own.price <= 0.01 ? 0 : own.price;
     a.settle(id, payout);
-    toast(`"${d.market.question}" resolved. Your ${own.name} shares ${payout === 1 ? 'paid $1 each' : 'expired worthless'}.`, { sticky: true });
+    const how = payout === 1 ? 'paid $1 each' : payout === 0 ? 'expired worthless' : `paid ${(payout * 100).toFixed(0)}¢ each (the market did not resolve cleanly to one side)`;
+    toast(`"${d.market.question}" resolved. Your ${own.name} shares ${how}.`, { sticky: true });
   });
 }

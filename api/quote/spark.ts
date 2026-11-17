@@ -7,7 +7,7 @@ import { symbol } from '../_lib/quotes.js';
 
 const MAX = 20;
 
-export default proxy(async (req, res) => {
+export default proxy(['symbols'], async (req, res) => {
   const raw = param(req, 'symbols') ?? '';
   const asked = [...new Set(raw.split(',').filter(Boolean).map((s) => symbol(s)))];
   if (asked.length === 0) throw new ProxyError(400, 'bad_request', 'Send at least one symbol.');

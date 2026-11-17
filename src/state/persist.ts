@@ -1,4 +1,5 @@
 import { SIM } from '../lib/env';
+import { documentProblem } from './validate';
 
 // Local-first storage. Everything Flame keeps (account, journal, watchlists,
 // layout, settings) lives in one IndexedDB store as versioned documents.
@@ -112,7 +113,15 @@ export async function load<T>(key: string): Promise<LoadResult<T>> {
     }
     const env = db ? await tx<Envelope>('readonly', (s) => s.get(key)) : memory.get(key);
     if (env === undefined) return { ok: true, data: undefined };
-    return { ok: true, data: migrate<T>(key, env) };
+    const data = migrate<T>(key, env);
+    const problem = documentProblem(key, data);
+    if (problem) {
+      // Present but not usable: report it, and never write defaults over it.
+      console.error(`[flame] stored ${key} failed validation: ${problem}`);
+      unreadable.add(key);
+      return { ok: false, error: problem };
+    }
+    return { ok: true, data };
   } catch (err) {
     console.error(`[flame] could not read stored ${key}`, err);
     unreadable.add(key);
@@ -227,7 +236,12 @@ export function readBackup(raw: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of KEYS) {
     const data = (b.documents as Record<string, unknown>)[key];
-    if (data !== undefined) out[key] = migrate(key, { v: b.schema, data, savedAt: b.exportedAt ?? 0 });
+    if (data === undefined) continue;
+    const migrated = migrate(key, { v: b.schema, data, savedAt: b.exportedAt ?? 0 });
+    // A file from outside is checked all the way down before anything is written.
+    const problem = documentProblem(key, migrated);
+    if (problem) throw new Error(`That backup cannot be imported. ${problem}`);
+    out[key] = migrated;
   }
   return out;
 }

@@ -112,6 +112,28 @@ describe('out-of-sample check', () => {
     expect(r.outOfSample.trades.every((t) => t.entryT >= trend[420]!.t)).toBe(true);
   });
 
+  it('the unseen part holds nothing over from the tuning part: its numbers describe one stretch', () => {
+    const r = outOfSample(trend, strategy('ma-cross'), DEFAULT_LAB)!;
+    const o = r.outOfSample;
+    expect(o.curve).toHaveLength(180);
+    expect(o.curve[0]!.t).toBe(trend[420]!.t);
+    // The return is exactly what its own trades made.
+    const fromTrades = o.trades.reduce((sum, t) => sum + t.pnl, 0);
+    expect(o.totalReturn * DEFAULT_LAB.startCash).toBeCloseTo(fromTrades, 4);
+    // Buy and hold over the same bars, with the same costs as the rule pays.
+    const cost = (1 - DEFAULT_LAB.slippage) * (1 - DEFAULT_LAB.fee) / ((1 + DEFAULT_LAB.slippage) * (1 + DEFAULT_LAB.fee));
+    expect(o.buyHold).toBeCloseTo((trend[599]!.c / trend[420]!.o) * cost - 1, 10);
+  });
+
+  it('warm-up bars are not traded and not counted', () => {
+    const candles = Array.from({ length: 10 }, (_, i) => bar(i, 100 + i, 101 + i));
+    const r = runBacktest(candles, scripted(candles.map(() => true)), {}, free, 6);
+    expect(r.bars).toBe(4);
+    expect(r.curve).toHaveLength(4);
+    expect(r.trades[0]!.entryT).toBe(candles[6]!.t);
+    expect(r.exposure).toBeCloseTo(3 / 4, 10); // in from bar 6, closed on the last bar
+  });
+
   it('says plainly when the two disagree', () => {
     // Rises for the tuning part, then falls for the unseen part.
     const flip = Array.from({ length: 600 }, (_, i) => {
@@ -158,6 +180,14 @@ describe('outcome cone', () => {
     expect(long.profitShare).toBeGreaterThan(0.8);
     expect(short.profitShare).toBeLessThan(0.2);
     expect(long.p50[21]!).toBeGreaterThan(100);
+  });
+
+  it('books a stop that the close gaps through at the close, not at the stop', () => {
+    // Every day falls 10%: a stop 1% away is passed on day one, far below it.
+    const falling = Array.from({ length: 200 }, (_, i) => 100 * 0.9 ** i);
+    const c = outcomeCone({ ...base, closes: falling, horizon: 5, stop: 99 })!;
+    expect(c.stopFirst).toBe(1);
+    expect(c.bad).toBeCloseTo((90 - 100) * 10, 6); // out at 90, not 99
   });
 
   it('counts which of the stop and the target is touched first', () => {

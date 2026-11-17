@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createAccount } from '../engine/engine';
 import { SCHEMA_VERSION, migrate, readBackup } from './persist';
 
 describe('stored documents', () => {
@@ -28,7 +29,8 @@ describe('stored documents', () => {
     expect(() => readBackup({ hello: 1 })).toThrow('That file is not a Flame backup.');
     expect(() => readBackup(null)).toThrow('That file is not a Flame backup.');
     expect(() => readBackup({ app: 'flame', schema: SCHEMA_VERSION + 5, documents: {} })).toThrow(/newer version/);
-    const docs = readBackup({ app: 'flame', schema: SCHEMA_VERSION, exportedAt: 1, documents: { account: { cash: 1 }, junk: 2 } });
-    expect(docs).toEqual({ account: { cash: 1 } });
+    const account = createAccount(100_000, 1);
+    const docs = readBackup({ app: 'flame', schema: SCHEMA_VERSION, exportedAt: 1, documents: { account, junk: 2 } });
+    expect(docs).toEqual({ account });
   });
 });

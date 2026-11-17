@@ -76,6 +76,8 @@ export function Replay() {
       const startIndex = bars.findIndex((b) => b.t >= from);
       if (bars.length < 20 || startIndex < 0) throw new Error('There are no bars from that date for this instrument and timeframe. Pick an earlier date or a longer timeframe.');
       if (startIndex >= bars.length - 1) throw new Error('That date is too recent: there is nothing after it to replay.');
+      // No bar before the start means the history begins later than the date asked for.
+      if (startIndex === 0) throw new Error(`The ${TIMEFRAMES.find((t) => t.id === frame)?.label} history for this instrument only goes back to ${stamp(bars[0]!.t)}. Pick a later date or a longer timeframe.`);
       useAccount.getState().reset('practice');
       setSession({ id: inst, tf: frame, bars, cursor: Math.max(startIndex - 1, 0), startIndex, exhausted: false });
       setPhase('running');

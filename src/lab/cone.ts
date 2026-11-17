@@ -91,12 +91,13 @@ export function outcomeCone(input: ConeInput): Cone | null {
         if (exit === null && watching) {
           const hitStop = stop !== undefined && (dir === 1 ? price <= stop : price >= stop);
           const hitTarget = target !== undefined && (dir === 1 ? price >= target : price <= target);
+          // Checked at the close, so booked at the close: a day that gaps through a stop costs more than the stop.
           if (hitStop) {
             stopFirst += 1;
-            exit = stop!;
+            exit = price;
           } else if (hitTarget) {
             targetFirst += 1;
-            exit = target!;
+            exit = price;
           }
         }
       }

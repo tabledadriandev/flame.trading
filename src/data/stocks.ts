@@ -72,13 +72,15 @@ const PLAN: Record<Timeframe, { interval: string; range: string; group?: number 
   '1w': { interval: '1wk', range: '10y' },
 };
 
-/** Join every `n` bars of the same exchange day into one. */
+const nyDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** Join every `n` bars of the same exchange day into one. The day is New York's, wherever the viewer is. */
 export function groupBars(bars: Candle[], n: number): Candle[] {
   const out: Candle[] = [];
   let day = '';
   let count = 0;
   for (const b of bars) {
-    const d = new Date(b.t).toDateString();
+    const d = nyDay.format(b.t);
     const cur = out[out.length - 1];
     if (!cur || d !== day || count >= n) {
       out.push({ ...b });
@@ -144,8 +146,11 @@ class StocksAdapter implements VenueAdapter {
     const data = await api<ChartPayload>(`/api/quote/chart?symbol=${encodeURIComponent(symbol)}&range=${plan.range}&interval=${plan.interval}`);
     meta.set(symbol, data.quote);
     let bars = plan.group ? groupBars(data.candles, plan.group) : data.candles;
-    if (query.from !== undefined) bars = bars.filter((b) => b.t >= query.from!);
-    if (query.limit !== undefined) bars = bars.slice(-query.limit);
+    // "From" means the first bars at or after that time; without it, the most recent ones.
+    if (query.from !== undefined) {
+      bars = bars.filter((b) => b.t >= query.from!);
+      if (query.limit !== undefined) bars = bars.slice(0, query.limit);
+    } else if (query.limit !== undefined) bars = bars.slice(-query.limit);
     return bars;
   }
 

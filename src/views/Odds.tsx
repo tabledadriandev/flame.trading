@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TOPICS, fetchEvents, fetchMarket, polyQuote, type OddsDetail, type OddsEvent, type OddsMarket, type OddsOutcome } from '../data/poly';
 import { marketFill } from '../engine/rules';
 import { posKey } from '../engine/types';
@@ -112,11 +112,18 @@ function MarketDialog({ pick, onClose }: { pick: Pick; onClose: () => void }) {
   const id = `poly:${token}`;
   const held = account.positions[posKey(id, 'spot')];
 
+  // The outcome on screen. An answer for any other outcome is out of date and is dropped.
+  const showing = useRef(token);
+  showing.current = token;
   const load = useCallback(() => {
     setError(null);
     fetchMarket(token, true)
-      .then(setDetail)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'The market could not be loaded.'));
+      .then((d) => {
+        if (showing.current === token) setDetail(d);
+      })
+      .catch((err: unknown) => {
+        if (showing.current === token) setError(err instanceof Error ? err.message : 'The market could not be loaded.');
+      });
   }, [token]);
 
   useEffect(() => {
@@ -310,16 +317,20 @@ export function Odds() {
   const [now, setNow] = useState(() => Date.now());
   const meta = useOdds((s) => s.meta);
 
+  // The topic on screen. A slower answer for a topic the user has left is dropped.
+  const showing = useRef(topic);
+  showing.current = topic;
   const load = useCallback(() => {
     setError(null);
     fetchEvents(topic)
       .then((e) => {
+        if (showing.current !== topic) return;
         setEvents(e);
         setNow(Date.now());
       })
       .catch((err: unknown) => {
         console.warn('[flame] prediction markets failed', err);
-        setError(err instanceof Error ? err.message : 'The markets could not be loaded.');
+        if (showing.current === topic) setError(err instanceof Error ? err.message : 'The markets could not be loaded.');
       });
   }, [topic]);
 

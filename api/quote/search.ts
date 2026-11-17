@@ -6,7 +6,7 @@ import { alpacaBars, alpacaSymbol } from '../_lib/alpaca.js';
 // ticker: if the feed has recent daily bars for it, it is returned as a match.
 // Search by name works over Flame's built-in list, in the browser.
 
-export default proxy(async (req, res) => {
+export default proxy(['q'], async (req, res) => {
   const q = (param(req, 'q') ?? '').trim().toUpperCase();
   if (q.length < 1 || q.length > 40 || !/^[\p{L}\p{N} .&'^=\-]+$/u.test(q)) throw new ProxyError(400, 'bad_query', 'Search for a ticker or a company name.');
   let sym: string;

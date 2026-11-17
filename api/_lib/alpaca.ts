@@ -115,6 +115,9 @@ export async function alpacaBars(symbols: string[], interval: Interval, range: R
       url: `${DATA}/v2/stocks/bars?${q}`,
       headers: { 'APCA-API-KEY-ID': cred.key, 'APCA-API-SECRET-KEY': cred.secret },
       timeoutMs: 9_000,
+      // Alpaca's free plan allows 200 calls a minute for the whole key; leave headroom for other instances.
+      perMinute: 120,
+      maxBytes: 12_000_000,
     });
     for (const [sym, bars] of Object.entries(data.bars ?? {})) out.get(sym)?.push(...readBars(bars));
     page = data.next_page_token ?? null;

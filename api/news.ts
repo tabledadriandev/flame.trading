@@ -13,10 +13,10 @@ const FEEDS: { source: string; url: string; hosts: string[] }[] = [
   { source: 'Bank of England', url: 'https://www.bankofengland.co.uk/rss/news', hosts: ['bankofengland.co.uk'] },
 ];
 
-export default proxy(async (_req, res) => {
+export default proxy([], async (_req, res) => {
   const results = await Promise.allSettled(
     FEEDS.map(async (f) => {
-      const xml = await fetchText({ name: f.source, url: f.url, accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml', timeoutMs: 8_000 });
+      const xml = await fetchText({ name: f.source, url: f.url, accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml', timeoutMs: 8_000, maxBytes: 3_000_000, perMinute: 30 });
       return parseFeed(xml, f.hosts, 20).map((item) => ({ ...item, source: f.source, primary: true, about: subjects(item.title) }));
     }),
   );

@@ -9,7 +9,7 @@ interface History {
   history?: { t?: number; p?: number }[];
 }
 
-export default proxy(async (req, res) => {
+export default proxy(['token', 'history'], async (req, res) => {
   const token = tokenId(param(req, 'token'));
   const wantHistory = param(req, 'history') === '1';
   const [book, markets, history] = await Promise.all([

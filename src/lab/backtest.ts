@@ -167,7 +167,12 @@ export interface BtResult {
 
 const YEAR = 365.25 * 86_400_000;
 
-export function runBacktest(candles: Candle[], def: StrategyDef, params: Record<string, number>, s: Settings): BtResult {
+/**
+ * Run a rule over the bars. With `startAt`, the bars before it only warm the
+ * indicators up: no position is opened there, and the result (trades, curve,
+ * exposure, buy-and-hold) covers the bars from `startAt` on.
+ */
+export function runBacktest(candles: Candle[], def: StrategyDef, params: Record<string, number>, s: Settings, startAt = 0): BtResult {
   const n = candles.length;
   const wants = def.wants(candles, params);
   const ranges = s.sizing.kind === 'risk' ? atr(candles, 14) : null;
@@ -197,6 +202,7 @@ export function runBacktest(candles: Candle[], def: StrategyDef, params: Record<
     const bar = candles[i]!;
     // Act on what the previous bar's close asked for, at this bar's open.
     const want = i > 0 ? wants[i - 1]! : false;
+    if (i < startAt) continue;
     if (qty === 0 && want) {
       const fill = bar.o * (1 + s.slippage);
       const equity = cash;
@@ -236,7 +242,7 @@ export function runBacktest(candles: Candle[], def: StrategyDef, params: Record<
     curve.push({ t: bar.t, equity, drawdown: dd });
   }
 
-  const first = candles[0];
+  const first = candles[startAt];
   const last = candles[n - 1];
   const end = curve[curve.length - 1]?.equity ?? s.startCash;
   const totalReturn = end / s.startCash - 1;
@@ -254,9 +260,9 @@ export function runBacktest(candles: Candle[], def: StrategyDef, params: Record<
     winRate: trades.length ? wins.length / trades.length : 0,
     profitFactor: trades.length === 0 ? null : lost > 0 ? won / lost : won > 0 ? Infinity : null,
     expectancy: trades.length ? trades.reduce((a, t) => a + t.pnl, 0) / trades.length : 0,
-    exposure: n ? inMarket / n : 0,
+    exposure: n > startAt ? inMarket / (n - startAt) : 0,
     buyHold,
-    bars: n,
+    bars: Math.max(0, n - startAt),
     from: first?.t ?? 0,
     to: last?.t ?? 0,
   };
@@ -301,43 +307,10 @@ export function outOfSample(candles: Candle[], def: StrategyDef, s: Settings): O
     }
   }
   if (!best || !bestResult) return null;
+  // The unseen part: the bars before the cut only warm the indicators up. Nothing is held across the cut,
+  // so return, trades, exposure and buy-and-hold all describe the same stretch.
   const warm = Math.min(cut, 400);
-  const tail = runBacktest(candles.slice(cut - warm), def, best, s);
-  // Rebase the tail so its result starts at the cut.
-  const start = tail.curve[warm - 1]?.equity ?? s.startCash;
-  const testTrades = tail.trades.filter((t) => t.entryT >= candles[cut]!.t);
-  const testCurve = tail.curve.slice(warm);
-  let peak = start;
-  let maxDd = 0;
-  const curve = testCurve.map((p) => {
-    peak = Math.max(peak, p.equity);
-    const dd = peak > 0 ? (peak - p.equity) / peak : 0;
-    maxDd = Math.max(maxDd, dd);
-    return { t: p.t, equity: (p.equity / start) * s.startCash, drawdown: dd };
-  });
-  const end = testCurve[testCurve.length - 1]?.equity ?? start;
-  const total = end / start - 1;
-  const firstT = candles[cut]!.t;
-  const lastT = candles[candles.length - 1]!.t;
-  const years = Math.max((lastT - firstT) / YEAR, 1 / 365.25);
-  const wins = testTrades.filter((t) => t.pnl > 0);
-  const won = wins.reduce((a, t) => a + t.pnl, 0);
-  const lost = testTrades.filter((t) => t.pnl < 0).reduce((a, t) => a - t.pnl, 0);
-  const test: BtResult = {
-    trades: testTrades,
-    curve,
-    totalReturn: total,
-    cagr: (1 + total) ** (1 / years) - 1,
-    maxDrawdown: maxDd,
-    winRate: testTrades.length ? wins.length / testTrades.length : 0,
-    profitFactor: testTrades.length === 0 ? null : lost > 0 ? won / lost : won > 0 ? Infinity : null,
-    expectancy: testTrades.length ? testTrades.reduce((a, t) => a + t.pnl, 0) / testTrades.length : 0,
-    exposure: tail.exposure,
-    buyHold: candles[candles.length - 1]!.c / candles[cut]!.o - 1,
-    bars: candles.length - cut,
-    from: firstT,
-    to: lastT,
-  };
+  const test = runBacktest(candles.slice(cut - warm), def, best, s, warm);
 
   const inYear = bestResult.cagr;
   const outYear = test.cagr;

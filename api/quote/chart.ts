@@ -5,7 +5,7 @@ import { rangeAndInterval, symbol } from '../_lib/quotes.js';
 // GET /api/quote/chart?symbol=SPY&range=1d&interval=5m
 // Candles plus the quote (last price, previous close, session) for one symbol.
 
-export default proxy(async (req, res) => {
+export default proxy(['symbol', 'range', 'interval'], async (req, res) => {
   const sym = alpacaSymbol(symbol(param(req, 'symbol')));
   const { range, interval } = rangeAndInterval(param(req, 'range'), param(req, 'interval'));
   const now = Date.now();
