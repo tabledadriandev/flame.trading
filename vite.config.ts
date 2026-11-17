@@ -31,4 +31,6 @@ export default defineConfig({
     }),
   ],
   build: { target: 'es2022', sourcemap: true },
+  // The data proxies in /api run on Vercel. In local development, borrow the deployed ones.
+  server: { proxy: { '/api': { target: 'https://flame.trading', changeOrigin: true } } },
 });

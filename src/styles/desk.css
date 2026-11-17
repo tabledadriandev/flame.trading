@@ -337,13 +337,23 @@
   font-weight: 600;
 }
 
-.readout {
+.chart-bar {
   display: flex;
   flex: none;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  padding: var(--s-1) var(--s-2) var(--s-1) var(--s-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.readout {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0 var(--s-3);
-  min-height: 22px;
-  padding: 3px var(--s-3) 0;
+  min-height: 18px;
   font-size: var(--t-12);
   line-height: 18px;
 }
@@ -490,6 +500,10 @@
 .ticket-problem {
   color: var(--ink);
   font-weight: 600;
+}
+
+.ticket-hint {
+  color: var(--ink-2);
 }
 
 .ticket-go {
@@ -856,7 +870,7 @@
 
 .phone-tab {
   flex: 1 0 auto;
-  height: 30px;
+  height: 40px;
   padding: 0 10px;
   border: 0;
   border-radius: var(--r-control);
@@ -924,10 +938,9 @@
     display: none;
   }
 
-  .pane-chart .pane-tools {
-    flex-wrap: wrap;
-    width: 100%;
-    margin-left: 0;
+  .readout {
+    justify-content: flex-start;
+    flex-basis: 100%;
   }
 
   .ind-pop {
@@ -942,7 +955,7 @@
 
   /* Comfortable touch targets. */
   .ticket .seg-item {
-    height: 32px;
+    height: 36px;
   }
 
   .ticket .field-box {

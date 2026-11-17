@@ -26,7 +26,7 @@ export function Pane({
       <header className="pane-head">
         {head ?? (
           <>
-            <span className="pane-title">{title}</span>
+            <h2 className="pane-title">{title}</h2>
             {tools ? <div className="pane-tools">{tools}</div> : null}
           </>
         )}

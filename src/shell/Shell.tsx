@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ChartCandlestick,
   FlaskConical,
@@ -62,6 +62,9 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
   const [theme, setTheme] = useState(() => resolvedTheme(readTheme()));
 
   const zen = useLayout((s) => s.zen) && view === 'desk';
+  useEffect(() => {
+    document.title = `Flame: ${NAV.find((n) => n.id === view)?.label ?? 'Desk'}`;
+  }, [view]);
   useGlobalKeys();
 
   function toggleTheme() {
@@ -109,7 +112,10 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
         </button>
       </header>
 
-      <main className="view">{children}</main>
+      <main className="view">
+        <h1 className="sr-only">{NAV.find((n) => n.id === view)?.label}</h1>
+        {children}
+      </main>
       <Palette />
       <Toasts />
     </div>

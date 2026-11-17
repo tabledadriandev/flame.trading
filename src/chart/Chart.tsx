@@ -178,7 +178,11 @@ export function Chart(props: ChartProps) {
         horzLine: { color: colors.ink2, labelBackgroundColor: colors.ink, width: 1, style: LineStyle.Dashed },
       },
       rightPriceScale: { borderColor: colors.line },
-      localization: { timeFormatter: (t: Time) => (typeof t === 'number' ? timeLabel(t, 'full', cb.current.intraday ?? true) : String(t)) },
+      localization: {
+        // Prices on the axis read like prices everywhere else: 64,210.50, not 64210.50.
+        priceFormatter: (p: number) => fmtPrice(p),
+        timeFormatter: (t: Time) => (typeof t === 'number' ? timeLabel(t, 'full', cb.current.intraday ?? true) : String(t)),
+      },
       timeScale: {
         borderColor: colors.line,
         timeVisible: true,
@@ -528,7 +532,7 @@ export function Chart(props: ChartProps) {
   };
 
   return (
-    <div className="chart" role="group" aria-label={label}>
+    <div className="chart" role="group" aria-label={`${label}. The bar under the crosshair is read out above the chart; order lines can be moved with the arrow keys.`}>
       <div className="chart-host" ref={host} />
       <div className="chart-lines" ref={overlay}>
         {(lines ?? []).map((line) => (

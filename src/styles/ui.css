@@ -126,6 +126,14 @@ textarea {
   font-weight: 600;
 }
 
+.seg-item[aria-checked='true'] .hot {
+  color: var(--hot-on-ink);
+}
+
+.seg-item[aria-checked='true'] .cold {
+  color: var(--cold-on-ink);
+}
+
 .seg-tall > .seg-item {
   height: 28px;
 }
@@ -260,6 +268,8 @@ input[type='range'] {
 }
 
 .pane-title {
+  margin: 0;
+  font-size: inherit;
   font-weight: 600;
   white-space: nowrap;
 }

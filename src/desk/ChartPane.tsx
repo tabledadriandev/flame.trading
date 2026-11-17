@@ -173,7 +173,7 @@ export function ChartPane({ onReplay }: { onReplay?: (t: number) => void }) {
       className="pane-chart"
       head={
         <>
-          <span className="pane-title">{i.symbol}</span>
+          <h2 className="pane-title">{i.symbol}</h2>
           <span className="chart-name">{i.name}</span>
           <span className="chart-last num" data-flash={flash ?? undefined}>
             {q ? price(q.last) : '—'}
@@ -183,20 +183,6 @@ export function ChartPane({ onReplay }: { onReplay?: (t: number) => void }) {
           </span>
           <FeedBadge instrumentId={id} />
           <div className="pane-tools">
-            <Segmented<Timeframe>
-              label="Timeframe"
-              value={tf}
-              onChange={setTf}
-              options={TIMEFRAMES.map((t, n) => ({ value: t.id, label: t.label, title: `${t.label} bars (press ${n + 1})` }))}
-            />
-            <select className="pane-select" value={ind.chartType} onChange={(e) => ind.setChartType(e.target.value as ChartType)} aria-label="Chart type">
-              {TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <IndicatorMenu canDelta={i.cls === 'crypto'} intraday={intraday} onAnchor={() => setAnchoring(true)} />
             <button
               type="button"
               className="btn btn-quiet btn-icon"
@@ -211,7 +197,23 @@ export function ChartPane({ onReplay }: { onReplay?: (t: number) => void }) {
         </>
       }
     >
-      <Readout c={hover ?? last} />
+      <div className="chart-bar">
+        <Segmented<Timeframe>
+          label="Timeframe"
+          value={tf}
+          onChange={setTf}
+          options={TIMEFRAMES.map((t, n) => ({ value: t.id, label: t.label, title: `${t.label} bars (press ${n + 1})` }))}
+        />
+        <select className="pane-select" value={ind.chartType} onChange={(e) => ind.setChartType(e.target.value as ChartType)} aria-label="Chart type">
+          {TYPES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <IndicatorMenu canDelta={i.cls === 'crypto'} intraday={intraday} onAnchor={() => setAnchoring(true)} />
+        <Readout c={hover ?? last} />
+      </div>
       <div className="chart-wrap">
         {feed.state === 'failed' ? (
           <PaneState

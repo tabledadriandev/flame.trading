@@ -26,6 +26,7 @@ function Row({
   onToggle,
   onPick,
   multi,
+  tab,
 }: {
   row: LadderRow;
   side: 'bid' | 'ask';
@@ -36,6 +37,8 @@ function Row({
   onToggle: () => void;
   onPick: () => void;
   multi: boolean;
+  /** One row is in the tab order; the arrow keys reach the rest. */
+  tab: boolean;
 }) {
   const step = heatStep(row.size, max);
   const width = max > 0 ? Math.max(2, Math.sqrt(row.size / max) * 100) : 0;
@@ -48,6 +51,7 @@ function Row({
           <button
             type="button"
             className="ladder-open"
+            tabIndex={-1}
             onClick={onToggle}
             aria-expanded={open}
             aria-label={`${open ? 'Hide' : 'Show'} which venues hold the size at ${price(row.price, decimals)}`}
@@ -60,6 +64,7 @@ function Row({
         <button
           type="button"
           className="ladder-pick num"
+          tabIndex={tab ? 0 : -1}
           onClick={onPick}
           title="Load this price into the ticket as a limit"
           aria-label={`${side === 'bid' ? 'Bid' : 'Ask'} ${price(row.price, decimals)}, size ${compact(row.size)}. Load into the ticket as a limit.`}
@@ -212,7 +217,27 @@ export function Book({ rangePct = 0.01 }: { rangePct?: number }) {
               ) : null}
             </div>
           </div>
-          <div className="ladder" ref={wrap}>
+          <div
+            className="ladder"
+            ref={wrap}
+            role="group"
+            aria-label="Price ladder. Arrow keys move between prices; left opens the venue split."
+            onKeyDown={(e) => {
+              const here = document.activeElement as HTMLElement | null;
+              if (!here || !e.currentTarget.contains(here)) return;
+              const picks = [...e.currentTarget.querySelectorAll<HTMLElement>('.ladder-pick')];
+              const row = here.closest('.ladder-row');
+              const n = picks.indexOf(row?.querySelector<HTMLElement>('.ladder-pick') ?? here);
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                picks[Math.max(0, Math.min(picks.length - 1, n + (e.key === 'ArrowDown' ? 1 : -1)))]?.focus();
+              } else if (e.key === 'ArrowLeft') {
+                row?.querySelector<HTMLElement>('button.ladder-open')?.focus();
+              } else if (e.key === 'ArrowRight') {
+                picks[n]?.focus();
+              }
+            }}
+          >
             <div className="ladder-side ladder-asks">
               {asks
                 .slice()
@@ -226,6 +251,7 @@ export function Book({ rangePct = 0.01 }: { rangePct?: number }) {
                     decimals={decimals}
                     wall={l.askWall}
                     multi={multi}
+                    tab={false}
                     open={open === `a${row.price}`}
                     onToggle={() => setOpen(open === `a${row.price}` ? null : `a${row.price}`)}
                     onPick={() => prefill({ type: 'limit', price: String(row.price) })}
@@ -248,6 +274,7 @@ export function Book({ rangePct = 0.01 }: { rangePct?: number }) {
                   decimals={decimals}
                   wall={l.bidWall}
                   multi={multi}
+                  tab={row === bids[0]}
                   open={open === `b${row.price}`}
                   onToggle={() => setOpen(open === `b${row.price}` ? null : `b${row.price}`)}
                   onPick={() => prefill({ type: 'limit', price: String(row.price) })}

@@ -43,6 +43,8 @@ export interface TicketPreview {
   risk: number | null;
   /** Why the order cannot be placed, in words. Null when it can. */
   problem: string | null;
+  /** True when the "problem" is only that the ticket is not filled in yet: shown as a quiet prompt, not a warning. */
+  incomplete: boolean;
   sentence: string;
   verb: string;
 }
@@ -56,7 +58,7 @@ export function previewTicket(t: TicketInput): TicketPreview {
   const touch = q ? (t.side === 'buy' ? q.ask : q.bid) : NaN;
   const ref = t.type === 'market' ? touch : t.price;
   const verb = t.mode === 'lev' ? (t.side === 'buy' ? 'Long' : 'Short') : t.side === 'buy' ? 'Buy' : 'Sell';
-  const empty: TicketPreview = { qty: 0, ref, est: ref, notional: 0, fee: 0, uses: 0, liq: null, tpR: null, risk: null, problem: null, sentence: '', verb };
+  const empty: TicketPreview = { qty: 0, ref, est: ref, notional: 0, fee: 0, uses: 0, liq: null, tpR: null, risk: null, problem: null, incomplete: true, sentence: '', verb };
 
   if (t.type !== 'market' && !finite(t.price)) return { ...empty, problem: `Enter a ${t.type} price.` };
   if (t.type === 'market' && !q) return { ...empty, problem: 'Waiting for a live price.' };
@@ -108,7 +110,7 @@ export function previewTicket(t: TicketInput): TicketPreview {
   else first = `${verb} ${amount} at market once the price trades at ${dollars(t.price)}.`;
   const feeText = fee > 0 ? ` Fee ${money(fee)}.` : ' No fee.';
   const usesText = closing ? ` Returns about ${money(notional - fee)} to cash.` : t.mode === 'lev' ? ` Holds ${money(notional / lev)} as margin.` : ` Uses ${money(uses)} of cash.`;
-  return { qty, ref, est, notional, fee, uses, liq, tpR, risk, problem, sentence: first + feeText + usesText, verb };
+  return { qty, ref, est, notional, fee, uses, liq, tpR, risk, problem, incomplete: false, sentence: first + feeText + usesText, verb };
 }
 
 /** The largest size the cash (or the holding, for a spot sale) allows. */

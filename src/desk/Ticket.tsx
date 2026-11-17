@@ -330,8 +330,9 @@ export function Ticket() {
           </div>
         ) : null}
 
-        <div className="ticket-preview" role="status" aria-live="polite">
-          {preview.problem ? <span className="ticket-problem">{preview.problem}</span> : preview.sentence}
+        {/* Not a live region: it changes with every tick. The order button points at it instead. */}
+        <div className="ticket-preview" id="ticket-preview">
+          {preview.problem ? <span className={preview.incomplete ? 'ticket-hint' : 'ticket-problem'}>{preview.problem}</span> : preview.sentence}
           {!preview.problem && closedMarket ? ' The market is closed; the order waits for the open.' : ''}
           {!preview.problem && t.type !== 'limit' && route(id)?.adapter.hasBook && fillBasis(id) === 'last'
             ? ' The order book is not synced right now, so this fills at the last price plus one basis point instead of walking the book.'
@@ -341,7 +342,7 @@ export function Ticket() {
         {touch ? (
           <HoldButton label={action} onConfirm={submit} disabled={!!preview.problem || !(preview.qty > 0)} side={t.side} />
         ) : (
-          <button type="submit" className="btn btn-primary ticket-go" data-side={t.side} disabled={!!preview.problem || !(preview.qty > 0)}>
+          <button type="submit" className="btn btn-primary ticket-go" data-side={t.side} aria-describedby="ticket-preview" disabled={!!preview.problem || !(preview.qty > 0)}>
             <span className="ticket-go-text">{action}</span>
             <kbd>Enter</kbd>
           </button>

@@ -26,6 +26,9 @@
   /* The same hues, deepened until they pass 4.5:1 as small text on every light surface. */
   --hot-text: #a04606;
   --cold-text: #1a5fb6;
+  /* The hues on an inverted (ink) surface, such as the glyph on a selected Buy or Sell pill. */
+  --hot-on-ink: #dd7418;
+  --cold-on-ink: #3d8ce3;
 
   /* Type: one family, three widths. Width encodes density. */
   --font: 'Archivo Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -90,6 +93,8 @@
     --cold-wash: rgb(61 140 227 / 0.16);
     --hot-text: #dd7418;
     --cold-text: #3d8ce3;
+    --hot-on-ink: #a04606;
+    --cold-on-ink: #1a5fb6;
   }
 }
 
@@ -108,4 +113,6 @@
   --cold-wash: rgb(61 140 227 / 0.16);
   --hot-text: #dd7418;
   --cold-text: #3d8ce3;
+  --hot-on-ink: #a04606;
+  --cold-on-ink: #1a5fb6;
 }
