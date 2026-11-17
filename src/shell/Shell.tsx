@@ -16,6 +16,32 @@ import {
 import { Mark } from './Mark';
 import type { ViewId } from '../lib/route';
 import { readTheme, resolvedTheme, writeTheme } from '../lib/theme';
+import { SIM } from '../lib/env';
+import { money } from '../lib/format';
+import { useValuation } from '../state/hooks';
+import { useAccount } from '../state/account';
+import { Toasts } from '../ui/Toasts';
+import { Help } from '../ui/controls';
+
+function AccountBadge() {
+  const v = useValuation('live');
+  const start = useAccount((s) => s.live.startCash);
+  const total = v.equity - start;
+  return (
+    <div className="bar-account">
+      <span className="bar-account-label">
+        Paper equity{' '}
+        <Help align="right">
+          Cash, plus the value of what you hold, plus the margin behind leveraged positions and their unrealised P&amp;L. All of it is play money.
+        </Help>
+      </span>
+      <span className="bar-account-value num">{money(v.equity)}</span>
+      <span className={`bar-account-pnl num ${total >= 0 ? 'hot' : 'cold'}`} title="Change since the account started">
+        {money(total, { signed: true })}
+      </span>
+    </div>
+  );
+}
 
 export const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
   { id: 'desk', label: 'Desk', icon: ChartCandlestick },
@@ -60,10 +86,12 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
           Search a stock, index or coin
           <kbd>⌘K</kbd>
         </div>
-        <div className="bar-account">
-          <span className="bar-account-label">Paper account</span>
-          <span className="bar-account-value num">$100,000.00</span>
-        </div>
+        {SIM ? (
+          <span className="status" data-level="warn" title="Every price on screen is made up. Remove ?sim=1 from the address to see real markets.">
+            Simulated feed
+          </span>
+        ) : null}
+        <AccountBadge />
         <button
           type="button"
           className="theme-toggle"
@@ -75,6 +103,7 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
       </header>
 
       <main className="view">{children}</main>
+      <Toasts />
     </div>
   );
 }

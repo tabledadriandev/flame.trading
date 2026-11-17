@@ -1,4 +1,6 @@
 @import './tokens.css';
+@import './ui.css';
+@import './desk.css';
 
 *,
 *::before,
@@ -41,11 +43,11 @@ button {
 }
 
 .hot {
-  color: var(--hot);
+  color: var(--hot-text);
 }
 
 .cold {
-  color: var(--cold);
+  color: var(--cold-text);
 }
 
 /* ---------- Shell ---------- */
@@ -134,8 +136,14 @@ button {
   border: 1px solid var(--line);
   border-radius: var(--r-control);
   background: var(--bg);
-  color: var(--ink-3);
-  cursor: not-allowed;
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: left;
+}
+
+.bar-search:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
 }
 
 .bar-search kbd {
@@ -154,13 +162,23 @@ button {
 }
 
 .bar-account-label {
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: var(--t-12);
 }
 
 .bar-account-value {
   font-size: var(--t-15);
   font-weight: 600;
+}
+
+.bar-account-pnl {
+  font-size: var(--t-12);
+}
+
+.blocked {
+  display: grid;
+  place-items: center;
+  height: 100%;
 }
 
 .theme-toggle {
@@ -184,60 +202,6 @@ button {
   min-width: 0;
   min-height: 0;
   overflow: auto;
-}
-
-/* ---------- Desk skeleton ---------- */
-
-.desk {
-  display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) 280px 296px;
-  grid-template-rows: minmax(0, 1fr) 220px;
-  height: 100%;
-  background: var(--line);
-  gap: 1px;
-}
-
-.pane {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  background: var(--surface);
-}
-
-.pane-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 34px;
-  padding: 0 var(--s-3);
-  border-bottom: 1px solid var(--line);
-  font-weight: 600;
-}
-
-.pane-head small {
-  font-weight: 400;
-  color: var(--ink-3);
-  font-size: var(--t-12);
-}
-
-.pane-body {
-  flex: 1;
-  display: grid;
-  place-content: center;
-  gap: var(--s-1);
-  padding: var(--s-4);
-  text-align: center;
-  color: var(--ink-3);
-}
-
-.pane-body strong {
-  color: var(--ink-2);
-  font-weight: 500;
-}
-
-.pane-positions {
-  grid-column: 1 / -1;
 }
 
 /* ---------- Unbuilt views ---------- */
@@ -305,12 +269,15 @@ button {
     display: none;
   }
 
-  .desk {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
-    grid-auto-rows: minmax(180px, auto);
-    height: auto;
+  .bar-account-label {
+    display: none;
   }
+
+  .bar {
+    gap: var(--s-2);
+    padding: 0 var(--s-3);
+  }
+
 }
 
 @media (prefers-reduced-motion: reduce) {

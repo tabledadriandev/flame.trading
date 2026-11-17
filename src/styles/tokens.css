@@ -23,6 +23,9 @@
   --cold: #1f6fd1;
   --hot-wash: rgb(194 87 10 / 0.12);
   --cold-wash: rgb(31 111 209 / 0.12);
+  /* The same hues, deepened until they pass 4.5:1 as small text on every light surface. */
+  --hot-text: #a04606;
+  --cold-text: #1a5fb6;
 
   /* Type: one family, three widths. Width encodes density. */
   --font: 'Archivo Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -54,6 +57,20 @@
 
   --rail: 64px;
   --bar: 48px;
+  --row: 22px;
+  --pane-head: 34px;
+
+  /* Heat ramp: one hue per side, from wash to full (docs/design-system.md, "Heat ramps"). */
+  --hot-1: color-mix(in oklab, var(--hot) 12%, var(--surface));
+  --hot-2: color-mix(in oklab, var(--hot) 28%, var(--surface));
+  --hot-3: color-mix(in oklab, var(--hot) 46%, var(--surface));
+  --hot-4: color-mix(in oklab, var(--hot) 68%, var(--surface));
+  --hot-5: var(--hot);
+  --cold-1: color-mix(in oklab, var(--cold) 12%, var(--surface));
+  --cold-2: color-mix(in oklab, var(--cold) 28%, var(--surface));
+  --cold-3: color-mix(in oklab, var(--cold) 46%, var(--surface));
+  --cold-4: color-mix(in oklab, var(--cold) 68%, var(--surface));
+  --cold-5: var(--cold);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -71,6 +88,8 @@
     --cold: #3d8ce3;
     --hot-wash: rgb(221 116 24 / 0.16);
     --cold-wash: rgb(61 140 227 / 0.16);
+    --hot-text: #dd7418;
+    --cold-text: #3d8ce3;
   }
 }
 
@@ -87,4 +106,6 @@
   --cold: #3d8ce3;
   --hot-wash: rgb(221 116 24 / 0.16);
   --cold-wash: rgb(61 140 227 / 0.16);
+  --hot-text: #dd7418;
+  --cold-text: #3d8ce3;
 }

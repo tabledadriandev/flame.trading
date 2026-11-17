@@ -1,0 +1,480 @@
+/* The desk: full-bleed panes divided by 1px lines. No cards, no shadows. */
+
+.desk {
+  display: grid;
+  grid-template-columns: var(--w-watch, 240px) minmax(0, 1fr) var(--w-book, 272px) var(--w-ticket, 300px);
+  grid-template-rows: minmax(0, 1fr) var(--h-drawer, 220px);
+  grid-template-areas:
+    'watch chart book ticket'
+    'drawer drawer drawer drawer';
+  gap: 1px;
+  height: 100%;
+  background: var(--line);
+}
+
+.pane-watch {
+  grid-area: watch;
+}
+.pane-chart {
+  grid-area: chart;
+}
+.pane-book {
+  grid-area: book;
+}
+.pane-ticket {
+  grid-area: ticket;
+}
+.pane-drawer {
+  grid-area: drawer;
+}
+
+.desk[data-max='chart'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'chart';
+}
+
+.desk[data-max='chart'] > :not(.pane-chart) {
+  display: none;
+}
+
+.pane-select {
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--bg);
+  font-size: var(--t-12);
+  cursor: pointer;
+}
+
+.pane-select:hover {
+  border-color: var(--line-strong);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration-color: var(--ink);
+}
+
+/* A price cell flashes its wash for 300 ms on a tick: the only unprompted motion. */
+[data-flash='up'] {
+  animation: flash-hot 300ms ease-out;
+}
+
+[data-flash='down'] {
+  animation: flash-cold 300ms ease-out;
+}
+
+@keyframes flash-hot {
+  from {
+    background: var(--hot-wash);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@keyframes flash-cold {
+  from {
+    background: var(--cold-wash);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* ---------- Watchlist ---------- */
+
+.watch {
+  display: flex;
+  flex-direction: column;
+}
+
+.watch-head,
+.watch-row {
+  display: grid;
+  grid-template-columns: minmax(40px, 1fr) 44px minmax(62px, auto) 52px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--s-2) 0 var(--s-3);
+}
+
+.watch-head {
+  position: sticky;
+  top: 0;
+  height: 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--t-12);
+  font-stretch: var(--w-dense);
+}
+
+.watch-head span:nth-child(n + 3) {
+  text-align: right;
+}
+
+.watch-row {
+  height: 28px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.watch-row:hover {
+  background: var(--raised);
+}
+
+.watch-row[aria-current='true'] {
+  background: var(--bg);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+.watch-row:focus-visible {
+  outline-offset: -2px;
+}
+
+.watch-sym {
+  font-weight: 600;
+  font-stretch: var(--w-dense);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-last,
+.watch-chg {
+  text-align: right;
+}
+
+.watch-last {
+  padding: 1px 2px;
+  margin: 0 -2px;
+  border-radius: 3px;
+}
+
+.spark {
+  display: block;
+}
+
+/* ---------- Chart pane ---------- */
+
+.pane-chart .pane-head {
+  gap: var(--s-3);
+}
+
+.chart-name {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.chart-last {
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: var(--t-15);
+  font-weight: 600;
+}
+
+.readout {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0 var(--s-3);
+  min-height: 22px;
+  padding: 3px var(--s-3) 0;
+  font-size: var(--t-12);
+  line-height: 18px;
+}
+
+.readout i {
+  color: var(--ink-2);
+  font-style: normal;
+}
+
+.chart-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.chart {
+  position: absolute;
+  inset: 0;
+}
+
+.chart-host {
+  position: absolute;
+  inset: 0;
+}
+
+.chart-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.chart-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--ink-2);
+}
+
+.chart-line[data-dashed='true'] {
+  border-top-style: dashed;
+}
+
+.chart-tag {
+  position: absolute;
+  right: 4px;
+  top: -10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 19px;
+  padding: 0 6px;
+  border: 1px solid var(--ink-2);
+  border-radius: 4px;
+  background: var(--raised);
+  font-size: var(--t-11);
+  font-stretch: var(--w-dense);
+  white-space: nowrap;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+}
+
+.chart-tag[data-side='buy'] {
+  background: var(--hot-2);
+}
+
+.chart-tag[data-side='sell'] {
+  background: var(--cold-2);
+}
+
+.chart-tag[data-drag='true'] {
+  cursor: ns-resize;
+}
+
+.chart-tag-price {
+  color: var(--ink-2);
+}
+
+.chart-tag-x {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin-right: -3px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chart-tag-x:hover {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.chart-note {
+  position: absolute;
+  left: var(--s-3);
+  bottom: 32px;
+  padding: 2px var(--s-2);
+  border: 1px dashed var(--ink-2);
+  border-radius: 4px;
+  background: var(--raised);
+  font-size: var(--t-12);
+}
+
+/* ---------- Ticket ---------- */
+
+.ticket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3);
+}
+
+.ticket-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  justify-content: space-between;
+}
+
+.ticket-brackets > .field {
+  flex: 1 1 110px;
+}
+
+.ticket-preview {
+  min-height: 54px;
+  padding: var(--s-2) 10px;
+  border-left: 2px solid var(--line-strong);
+  background: var(--bg);
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  line-height: 1.4;
+}
+
+.ticket-problem {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.ticket-go {
+  position: relative;
+  height: 38px;
+  overflow: hidden;
+  font-size: var(--t-13);
+}
+
+/* The button is ink; only its edge carries the side. */
+.ticket-go::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: var(--hot);
+}
+
+.ticket-go[data-side='sell']::before {
+  background: var(--cold);
+}
+
+.ticket-go:disabled::before {
+  opacity: 0.5;
+}
+
+.ticket-go kbd {
+  position: absolute;
+  right: var(--s-2);
+  border-color: transparent;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.ticket-go-text {
+  position: relative;
+}
+
+.ticket-go-fill {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: var(--bg);
+  opacity: 0.25;
+}
+
+.ticket-go[data-holding='true'] .ticket-go-fill {
+  transform: scaleX(1);
+  transition: transform 650ms linear;
+}
+
+.ticket-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  font-size: var(--t-12);
+}
+
+.ticket-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.ticket-facts dt {
+  color: var(--ink-2);
+}
+
+.ticket-facts dd {
+  margin: 0;
+}
+
+/* ---------- Drawer ---------- */
+
+.pane-drawer .pane-head {
+  padding-left: var(--s-2);
+}
+
+.cell-input {
+  width: 96px;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: var(--bg);
+  text-align: right;
+}
+
+/* ---------- Small screens: the desk becomes a stack ---------- */
+
+@media (max-width: 860px) {
+  .desk {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 100%;
+  }
+
+  .desk > .pane {
+    flex: none;
+  }
+
+  .pane-chart {
+    height: 56vh;
+    min-height: 320px;
+  }
+
+  .pane-watch .pane-body,
+  .pane-drawer .pane-body {
+    max-height: 46vh;
+  }
+
+  .pane-drawer .pane-body {
+    overflow-x: auto;
+  }
+
+  .pane-chart .pane-head {
+    height: auto;
+    min-height: var(--pane-head);
+    flex-wrap: wrap;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    row-gap: 4px;
+  }
+
+  .chart-name {
+    display: none;
+  }
+
+  .desk[data-max='chart'] .pane-chart {
+    height: 100%;
+  }
+}

@@ -1,29 +1,35 @@
-// The desk is the terminal itself: every pane a trader needs on one screen.
-// This file is the layout skeleton; each pane is specified in docs/product-spec.md.
+import { ChartPane } from '../desk/ChartPane';
+import { Drawer } from '../desk/Drawer';
+import { Ticket } from '../desk/Ticket';
+import { Watchlist } from '../desk/Watchlist';
+import { useLayout } from '../state/layout';
+import { Pane, PaneState } from '../ui/controls';
 
-const PANES: { key: string; title: string; note: string; hint: string; wide?: boolean }[] = [
-  { key: 'watch', title: 'Watchlist', note: 'Live prices', hint: 'Your symbols, with price, day change and a sparkline.' },
-  { key: 'chart', title: 'Chart', note: 'Candles and indicators', hint: 'Candles, drawing levels, and your orders and positions on the price axis.' },
-  { key: 'book', title: 'Book and tape', note: 'All venues', hint: 'One heat ladder merged from every exchange, with the trade tape under it.' },
-  { key: 'ticket', title: 'Order ticket', note: 'Paper only', hint: 'Market, limit and stop orders, sized by the risk you choose.' },
-  { key: 'positions', title: 'Positions', note: 'Orders, fills, journal', hint: 'Open positions, working orders and every fill, each one journaled.', wide: true },
-];
+// The desk is the terminal itself: every pane a trader needs on one screen.
 
 export function Desk() {
+  const sizes = useLayout((s) => s.sizes);
+  const maximised = useLayout((s) => s.maximised);
   return (
-    <div className="desk">
-      {PANES.map((p) => (
-        <section key={p.key} className={p.wide ? 'pane pane-positions' : 'pane'} aria-label={p.title}>
-          <header className="pane-head">
-            {p.title}
-            <small>{p.note}</small>
-          </header>
-          <div className="pane-body">
-            <strong>Not built yet</strong>
-            <span>{p.hint}</span>
-          </div>
-        </section>
-      ))}
+    <div
+      className="desk"
+      data-max={maximised ?? undefined}
+      style={
+        {
+          '--w-watch': `${sizes.watch}px`,
+          '--w-book': `${sizes.book}px`,
+          '--w-ticket': `${sizes.ticket}px`,
+          '--h-drawer': `${sizes.drawer}px`,
+        } as React.CSSProperties
+      }
+    >
+      <Watchlist />
+      <ChartPane />
+      <Pane label="Book and tape" title="Book" className="pane-book">
+        <PaneState title="Not built yet">The heat ladder and the tape arrive in the next phase.</PaneState>
+      </Pane>
+      <Ticket />
+      <Drawer />
     </div>
   );
 }
