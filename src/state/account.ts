@@ -44,7 +44,7 @@ interface AccountStore {
   practice: Account;
   place(input: OrderInput, quote: Quote | undefined, book?: Book, t?: number): EngineEvent[];
   cancel(id: string, book?: Book): void;
-  amend(id: string, patch: { limit?: number; stop?: number; qty?: number }, book?: Book): void;
+  amend(id: string, patch: { limit?: number; stop?: number; qty?: number }, book?: Book, quote?: Quote): void;
   brackets(key: string, b: { tp?: number | null; sl?: number | null }, book?: Book, t?: number): void;
   onQuote(instrumentId: string, quote: Quote, book?: Book): void;
   onBar(instrumentId: string, bar: { t: number; o: number; h: number; l: number; c: number }, book?: Book, away?: boolean, asOf?: number): EngineEvent[];
@@ -55,6 +55,12 @@ interface AccountStore {
   reset(book?: Book): void;
   hydrate(a: Account | undefined): void;
   replace(a: Account): void;
+}
+
+// live.ts registers how to read the current price, so this file does not import it (it imports this one).
+let liveQuote: ((instrumentId: string) => Quote | undefined) | null = null;
+export function registerLiveQuote(fn: (instrumentId: string) => Quote | undefined): void {
+  liveQuote = fn;
 }
 
 function persist(a: Account): void {
@@ -88,8 +94,12 @@ export const useAccount = create<AccountStore>((set, get) => {
     cancel(id, book = 'live') {
       commit(book, cancelOrder(get()[book], id, engineSettings()));
     },
-    amend(id, patch, book = 'live') {
-      commit(book, amendOrder(get()[book], id, patch, engineSettings()));
+    amend(id, patch, book = 'live', quote) {
+      const a = get()[book];
+      const o = a.orders.find((x) => x.id === id);
+      // The live book checks the move against the market; Replay passes its own price.
+      const q = quote ?? (book === 'live' && o ? liveQuote?.(o.instrument) : undefined);
+      commit(book, amendOrder(a, id, patch, engineSettings(), q));
     },
     brackets(key, b, book = 'live', t = Date.now()) {
       commit(book, setBrackets(get()[book], key, b, engineSettings(), t));
@@ -159,7 +169,7 @@ function announce(events: EngineEvent[], book: Book): void {
       const kind = e.order.queued ? 'Market' : e.order.type === 'limit' ? 'Limit' : 'Stop';
       toast(`${tag}${kind} ${e.order.side} ${qty(e.order.qty, e.order.limit ?? e.order.stop ?? 1)} ${i.symbol} ${at}`);
     } else if (e.type === 'rejected') {
-      toast(`${tag}Order rejected. ${e.reason}`);
+      toast(`${tag}${e.order.status === 'working' ? 'Order not changed' : 'Order rejected'}. ${e.reason}`);
     } else if (e.type === 'liquidated') {
       const i = instrument(e.trade.instrument);
       toast(`${tag}${i.symbol} ${e.trade.dir} liquidated at ${dollars(e.trade.exitAvg)}. The margin is lost: ${money(e.trade.pnl)}.`, { sticky: true });

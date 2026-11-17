@@ -174,12 +174,26 @@ export function sessionVwap(candles: Candle[], offsetMs = 0): Vwap {
   return vwapBands(candles, (i) => dayOf(candles[i]!.t, offsetMs) !== dayOf(candles[i - 1]!.t, offsetMs));
 }
 
-/** VWAP from one bar onward; null before the anchor. */
+/** True when the bars reach back to the anchor, so a VWAP anchored there can be computed honestly. */
+export function anchorInRange(candles: Candle[], anchorT: number): boolean {
+  const first = candles[0];
+  const second = candles[1];
+  if (!first) return false;
+  const step = second ? second.t - first.t : 0;
+  return anchorT >= first.t - step && anchorT <= candles[candles.length - 1]!.t;
+}
+
+/**
+ * VWAP from one bar onward; null before the anchor. If the anchor is older
+ * than the first bar there is not enough history to compute it, and the
+ * result is blank rather than a VWAP anchored somewhere else.
+ */
 export function anchoredVwap(candles: Candle[], anchorT: number): Vwap {
-  const start = candles.findIndex((c) => c.t >= anchorT);
   const n = candles.length;
   const blank = (): Series => new Array(n).fill(null);
   const out: Vwap = { vwap: blank(), upper1: blank(), lower1: blank(), upper2: blank(), lower2: blank() };
+  if (!anchorInRange(candles, anchorT)) return out;
+  const start = candles.findIndex((c) => c.t >= anchorT);
   if (start < 0) return out;
   const part = vwapBands(candles.slice(start), () => false);
   for (const key of Object.keys(out) as (keyof Vwap)[]) {

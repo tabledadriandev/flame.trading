@@ -80,8 +80,11 @@ function PhoneDesk() {
   };
 
   // Something asked for the ticket (a price picked from the book, the B or S key): bring it into view.
+  const seenFocus = useRef(focus);
   useEffect(() => {
-    if (focus > 0) go(1);
+    // Only a new request moves the page; coming back to the desk stays on the chart.
+    if (focus > seenFocus.current) go(1);
+    seenFocus.current = focus;
   }, [focus]);
 
   return (

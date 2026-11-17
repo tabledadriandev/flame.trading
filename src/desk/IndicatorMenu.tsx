@@ -4,7 +4,7 @@ import { CATALOG, SHELF, shortName, type IndicatorType } from '../chart/indicato
 import { useIndicators } from '../state/indicators';
 
 /** Indicator settings: a small popover, not a modal. Each study says what it tells you. */
-export function IndicatorMenu({ canDelta, intraday, onAnchor }: { canDelta: boolean; intraday: boolean; onAnchor?: () => void }) {
+export function IndicatorMenu({ canDelta, intraday, onAnchor, anchorOk = true }: { canDelta: boolean; intraday: boolean; onAnchor?: () => void; anchorOk?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { active, volume, add, remove, setParam, setVolume } = useIndicators();
@@ -58,7 +58,7 @@ export function IndicatorMenu({ canDelta, intraday, onAnchor }: { canDelta: bool
                     {why ? <p className="ind-note">{why}</p> : null}
                     {a.type === 'avwap' ? (
                       <p className="ind-note">
-                        {a.params.anchor ? 'Anchored. ' : 'Not anchored yet. '}
+                        {!a.params.anchor ? 'Not anchored yet. ' : anchorOk ? 'Anchored. ' : 'Its anchor is older than the bars loaded on this timeframe, so it is not drawn. '}
                         {onAnchor ? (
                           <button type="button" className="link" onClick={() => { onAnchor(); setOpen(false); }}>
                             Pick the anchor bar

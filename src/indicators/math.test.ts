@@ -98,6 +98,12 @@ describe('VWAP', () => {
     expect(v.vwap[1]).toBeCloseTo(12, 10);
     expect(v.vwap[3]).toBeCloseTo((12 * 300 + 20 * 50 + 24 * 50) / 400, 10);
   });
+
+  it('is blank, not anchored somewhere else, when the anchor is older than the bars', () => {
+    const later = cs.map((c) => ({ ...c, t: c.t + 10 * D }));
+    expect(anchoredVwap(later, 0).vwap.every((v) => v === null)).toBe(true);
+    expect(anchoredVwap(later, 99 * D).vwap.every((v) => v === null)).toBe(true);
+  });
 });
 
 describe('previous-day levels', () => {

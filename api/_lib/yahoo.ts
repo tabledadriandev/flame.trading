@@ -1,4 +1,4 @@
-import { ProxyError } from './http';
+import { ProxyError } from './http.js';
 
 // Yahoo Finance's unofficial chart endpoints. Not a licensed feed: they can
 // change or refuse without notice, and prices are delayed for many exchanges.

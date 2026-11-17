@@ -1,5 +1,5 @@
-import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http';
-import { YAHOO, barsOf, quoteOf, symbol, type YahooResult } from '../_lib/yahoo';
+import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http.js';
+import { YAHOO, barsOf, quoteOf, symbol, type YahooResult } from '../_lib/yahoo.js';
 
 // GET /api/quote/spark?symbols=^GSPC,^IXIC,SPY
 // Last price, previous close and today's sparkline for up to 20 symbols in one call.

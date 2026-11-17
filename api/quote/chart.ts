@@ -1,5 +1,5 @@
-import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http';
-import { YAHOO, barsOf, quoteOf, rangeAndInterval, symbol, type YahooResult } from '../_lib/yahoo';
+import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http.js';
+import { YAHOO, barsOf, quoteOf, rangeAndInterval, symbol, type YahooResult } from '../_lib/yahoo.js';
 
 // GET /api/quote/chart?symbol=SPY&range=1d&interval=5m
 // Candles plus the quote (last price, previous close, session) for one symbol.

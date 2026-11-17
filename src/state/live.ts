@@ -8,6 +8,11 @@ import { MIN_GAP, catchUp } from './away';
 import { lastPrice, notePrice } from './clock';
 import { isStale, useMarket, type QuoteInfo } from './market';
 import { activeItems, useWatchlists } from './watchlists';
+import { crossed, useLevels } from './levels';
+import { toast } from './toasts';
+import { instrument } from '../data/instruments';
+import { dollars } from '../lib/format';
+import { registerLiveQuote } from './account';
 
 // Connects the feeds to the stores and to the engine:
 //  - a ticker for every instrument on a watchlist, on the desk or in the account
@@ -25,13 +30,15 @@ let deskSubs: Unsubscribe[] = [];
 let replaying = false;
 
 /**
- * Hand a price to the engine. If prices have not been arriving for a while
- * (Flame was closed, the machine slept, the feed dropped), the candles that
- * were missed are replayed first, and live prices wait until that is done so
- * an old stop is not filled at today's price.
+ * Called for every price that arrives. Returns true when the engine may act on
+ * it. If prices have not been arriving for a while (Flame was closed, the
+ * machine slept, the feed dropped), the candles that were missed are replayed
+ * first, and live prices wait until that is done, so an old stop is not
+ * filled at today's price. Every price goes through here, whichever
+ * instrument it is for: the gap must be noticed by the first one to arrive.
  */
-function engineQuote(id: string, quote: Quote): void {
-  if (replaying) return;
+function gate(): boolean {
+  if (replaying) return false;
   const now = Date.now();
   const prev = lastPrice();
   if (prev > 0 && now - prev > MIN_GAP) {
@@ -40,10 +47,14 @@ function engineQuote(id: string, quote: Quote): void {
       replaying = false;
       notePrice(Date.now());
     });
-    return;
+    return false;
   }
   notePrice(now);
-  useAccount.getState().onQuote(id, quote);
+  return true;
+}
+
+function engineQuote(id: string, quote: Quote): void {
+  if (gate()) useAccount.getState().onQuote(id, quote);
 }
 
 /** 'book' when a market order on this instrument would walk live depth, 'last' when it would fill at the last price. */
@@ -56,6 +67,33 @@ function flushQuotes(): void {
   pending = {};
   const m = useMarket.getState();
   useMarket.setState({ quotes: { ...m.quotes, ...batch } });
+  checkAlerts(batch);
+}
+
+/** Fire any price alert the new prices cross. */
+function checkAlerts(batch: Record<string, QuoteInfo>): void {
+  const levels = useLevels.getState();
+  for (const [id, q] of Object.entries(batch)) {
+    const list = levels.byInstrument[id];
+    if (!list || !list.some((l) => l.alert && l.firedAt === undefined)) continue;
+    // An alert set before any price had arrived is armed by the first one.
+    for (const l of list) if (l.alert && l.firedAt === undefined && l.from === undefined) levels.arm(id, l.id, q.last);
+    for (const l of crossed(useLevels.getState().byInstrument[id] ?? [], q.last)) {
+      levels.fire(id, l.id, Date.now());
+      const text = `${instrument(id).symbol} crossed your alert at ${dollars(l.price)}. It is now ${dollars(q.last)}.`;
+      toast(text, { sticky: true });
+      notify('Flame price alert', text);
+    }
+  }
+}
+
+/** A system notification, when the user has allowed them. The in-app notice is always shown. */
+function notify(title: string, body: string): void {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(title, { body, icon: '/icon-192.png' });
+  } catch (err) {
+    console.warn('[flame] system notification failed', err);
+  }
 }
 
 function pushQuote(id: string, info: QuoteInfo): void {
@@ -96,7 +134,7 @@ function onDeskTrades(id: string, ticks: Tick[]): void {
 
   const account = useAccount.getState();
   if (!isExposed(account.live, id)) {
-    notePrice(Date.now());
+    gate();
     return;
   }
   // Stops trigger on the last trade: show the engine the batch's extremes, then where it ended.
@@ -170,44 +208,70 @@ function reconcile(): void {
 /** Keep a ticker running for an instrument a view is showing (a Markets board, say). */
 export function watch(ids: string[]): Unsubscribe {
   for (const id of ids) extraInterest.add(id);
-  reconcile();
+  if (started) reconcile();
   return () => {
     for (const id of ids) extraInterest.delete(id);
-    reconcile();
+    if (started) reconcile();
   };
 }
 
 let started = false;
+const teardown: (() => void)[] = [];
+
+/** Stop every feed and timer: this tab has handed the account to another one. */
+export function stopLive(): void {
+  for (const off of teardown.splice(0)) off();
+  for (const stop of tickers.values()) stop();
+  tickers.clear();
+  for (const stop of deskSubs) stop();
+  deskSubs = [];
+  deskFor = null;
+  deskBook = null;
+  for (const stop of statusSubs.values()) stop();
+  statusSubs.clear();
+  extraInterest.clear();
+  started = false;
+}
 
 export function startLive(): void {
   if (started) return;
   started = true;
+  registerLiveQuote(quoteFor);
   reconcile();
   let lastInstrument = useMarket.getState().instrument;
-  useMarket.subscribe((s) => {
-    if (s.instrument !== lastInstrument) {
-      lastInstrument = s.instrument;
-      reconcile();
-    }
-  });
-  useWatchlists.subscribe(reconcile);
+  teardown.push(
+    useMarket.subscribe((s) => {
+      if (s.instrument !== lastInstrument) {
+        lastInstrument = s.instrument;
+        reconcile();
+      }
+    }),
+  );
+  teardown.push(useWatchlists.subscribe(reconcile));
   let lastAccount = useAccount.getState().live;
-  useAccount.subscribe((s) => {
-    if (s.live.positions !== lastAccount.positions || s.live.orders !== lastAccount.orders) reconcile();
-    lastAccount = s.live;
-  });
+  teardown.push(
+    useAccount.subscribe((s) => {
+      if (s.live.positions !== lastAccount.positions || s.live.orders !== lastAccount.orders) reconcile();
+      lastAccount = s.live;
+    }),
+  );
 
   const setOnline = () => useMarket.setState({ online: navigator.onLine });
   window.addEventListener('online', setOnline);
   window.addEventListener('offline', setOnline);
+  teardown.push(() => {
+    window.removeEventListener('online', setOnline);
+    window.removeEventListener('offline', setOnline);
+  });
 
   // The heartbeat stores the last moment a price arrived, so the next visit knows what it missed.
   let saved = 0;
-  setInterval(() => {
+  const beat = setInterval(() => {
     const seen = lastPrice();
     if (seen > saved && !replaying) {
       saved = seen;
       saveHeartbeat();
     }
   }, 5_000);
+  teardown.push(() => clearInterval(beat));
 }

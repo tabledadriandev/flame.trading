@@ -541,11 +541,17 @@ export function cancelOrder(a: Account, id: string, s: EngineSettings): Result {
   return finish(d);
 }
 
+/**
+ * Move a working order's price or change its size. With a quote, a move that
+ * would make the order trigger on the very next price is refused: dragging a
+ * stop through the market should not quietly turn into a market order.
+ */
 export function amendOrder(
   a: Account,
   id: string,
   patch: { limit?: number; stop?: number; qty?: number },
   s: EngineSettings,
+  q?: Quote,
 ): Result {
   const d = draft(a, s);
   const o = getOrder(d, id);
@@ -554,6 +560,22 @@ export function amendOrder(
   if (patch.limit !== undefined && patch.limit > 0 && o.limit !== undefined) next.limit = patch.limit;
   if (patch.stop !== undefined && patch.stop > 0 && o.stop !== undefined) next.stop = patch.stop;
   if (patch.qty !== undefined && patch.qty > 0) next.qty = patch.qty;
+  if (q && q.open !== false) {
+    let problem: string | null = null;
+    if (next.stop !== undefined && next.stop !== o.stop) {
+      if (next.side === 'sell' && next.stop >= q.last) problem = 'A sell stop must stay below the last price, or it would trigger at once.';
+      if (next.side === 'buy' && next.stop <= q.last) problem = 'A buy stop must stay above the last price, or it would trigger at once.';
+    }
+    if (next.limit !== undefined && next.limit !== o.limit) {
+      if (next.side === 'buy' && next.limit >= q.ask) problem = 'A buy limit at or above the ask would fill at once. Use a market order for that.';
+      if (next.side === 'sell' && next.limit <= q.bid) problem = 'A sell limit at or below the bid would fill at once. Use a market order for that.';
+    }
+    if (problem) {
+      // The order stays exactly as it was.
+      d.events.push({ type: 'rejected', order: o, reason: problem });
+      return finish(d);
+    }
+  }
   putOrder(d, next);
   return finish(d);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ProxyError } from './http';
-import { barsOf, quoteOf, rangeAndInterval, symbol } from './yahoo';
+import { ProxyError } from './http.js';
+import { barsOf, quoteOf, rangeAndInterval, symbol } from './yahoo.js';
 
 describe('proxy input validation', () => {
   it('accepts tickers as Yahoo writes them', () => {

@@ -1,5 +1,5 @@
-import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http';
-import { YAHOO } from '../_lib/yahoo';
+import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http.js';
+import { YAHOO } from '../_lib/yahoo.js';
 
 // GET /api/quote/search?q=nvid
 // Symbol matches: stocks, ETFs, indices, futures and currencies.

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { Chart, type ChartLine, type ChartType } from '../chart/Chart';
 import { indicatorSeries } from '../chart/indicators';
+import { anchorInRange } from '../indicators/math';
 import { fetchCandles, useCandles } from '../chart/useCandles';
 import { instrument } from '../data/instruments';
 import { TIMEFRAMES, type Candle, type Timeframe } from '../data/types';
@@ -133,23 +134,37 @@ export function ChartPane({ onReplay }: { onReplay?: (t: number) => void }) {
     () => account.fills.filter((f) => f.instrument === id).slice(-80).map((f) => ({ t: f.t, side: f.side })),
     [account.fills, id],
   );
-  // Markers sit on bars: snap each fill to the bar it happened in.
+  // Markers sit on bars: put each fill on the bar it happened in. Bars do not
+  // start on a fixed grid (weekly bars open on Monday, stock hours at :30), so
+  // look the bar up rather than rounding the time.
   const barMarkers = useMemo(() => {
-    const ms = TIMEFRAMES.find((t) => t.id === tf)!.ms;
-    const first = feed.candles[0]?.t ?? Infinity;
-    // One arrow per bar and side, however many fills landed in it.
+    const bars = feed.candles;
     const seen = new Set<string>();
     const out: { t: number; side: 'buy' | 'sell' }[] = [];
     for (const m of markers) {
-      if (m.t < first) continue;
-      const t = Math.floor(m.t / ms) * ms;
+      let lo = 0;
+      let hi = bars.length - 1;
+      let at = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (bars[mid]!.t <= m.t) {
+          at = mid;
+          lo = mid + 1;
+        } else hi = mid - 1;
+      }
+      if (at < 0) continue;
+      const t = bars[at]!.t;
+      // One arrow per bar and side, however many fills landed in it.
       const key = `${t}${m.side}`;
       if (seen.has(key)) continue;
       seen.add(key);
       out.push({ t, side: m.side });
     }
     return out;
-  }, [markers, tf, feed.candles]);
+  }, [markers, feed.candles]);
+
+  const avwap = ind.active.find((a) => a.type === 'avwap');
+  const anchorOk = !avwap?.params.anchor || anchorInRange(feed.candles, avwap.params.anchor);
 
   useEffect(() => {
     if (!menu) return;
@@ -211,7 +226,7 @@ export function ChartPane({ onReplay }: { onReplay?: (t: number) => void }) {
             </option>
           ))}
         </select>
-        <IndicatorMenu canDelta={i.cls === 'crypto'} intraday={intraday} onAnchor={() => setAnchoring(true)} />
+        <IndicatorMenu canDelta={i.cls === 'crypto'} intraday={intraday} onAnchor={() => setAnchoring(true)} anchorOk={anchorOk} />
         <Readout c={hover ?? last} />
       </div>
       <div className="chart-wrap">

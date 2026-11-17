@@ -3,7 +3,7 @@ import { useAccount } from './account';
 import { seedClock } from './clock';
 import { setFrameErrorHandler } from '../data/schedule';
 import { SIM } from '../lib/env';
-import { startLive } from './live';
+import { startLive, stopLive } from './live';
 import { useMarket } from './market';
 import { flush, freezeSaves, load, persistent, setSaveErrorHandler } from './persist';
 import { useSettings, type Settings } from './settings';
@@ -37,6 +37,8 @@ function claimAccount(): Promise<boolean> {
             if (e.data !== 'takeover') return;
             void flush().then(() => {
               freezeSaves();
+              // Stand down completely: no feeds, no engine, nothing saved from here on.
+              stopLive();
               useAccount.setState({ elsewhere: true });
               release();
             });

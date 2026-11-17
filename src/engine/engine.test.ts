@@ -491,4 +491,20 @@ describe('bars: replay and the catch-up after Flame was closed', () => {
     const r = onBar(pos, BTC, { t: 1_000, o: 49_500, h: 49_600, l: 40_000, c: 41_000 }, S, true, 2_000);
     expect(r.account.positions[posKey(BTC, 'lev')]).toBeDefined();
   });
+
+  it('refuses to move an order to a price where it would trigger at once', () => {
+    let a = place(createAccount(), { mode: 'lev', leverage: 5, qty: 1, sl: 49_000, tp: 52_000 }, q(50_000)).account;
+    const { sl, tp } = bracketsFor(a, a.positions[posKey(BTC, 'lev')]!);
+    // Dragging the stop above the market, or the target below it, is refused and nothing changes.
+    let r = amendOrder(a, sl!.id, { stop: 50_500 }, S, q(50_000));
+    expect(r.events[0]).toMatchObject({ type: 'rejected' });
+    expect(bracketsFor(r.account, r.account.positions[posKey(BTC, 'lev')]!).sl!.stop).toBe(49_000);
+    r = amendOrder(a, tp!.id, { limit: 49_900 }, S, q(50_000));
+    expect(r.events[0]).toMatchObject({ type: 'rejected' });
+    // A legal move goes through.
+    a = amendOrder(a, sl!.id, { stop: 49_500 }, S, q(50_000)).account;
+    expect(bracketsFor(a, a.positions[posKey(BTC, 'lev')]!).sl!.stop).toBe(49_500);
+    expect(evaluate(a, BTC, q(50_000), S).account.positions[posKey(BTC, 'lev')]).toBeDefined();
+  });
 });
+

@@ -61,25 +61,29 @@ export interface SearchResult {
   problem: string | null;
 }
 
-/** Local matches at once; `onMore` fires when the remote sources answer. */
+/** Local matches at once; `onMore` fires as the crypto list and the remote search answer, each time with everything known so far. */
 export function search(query: string, onMore: (r: SearchResult) => void): Instrument[] {
   const local = searchLocal(query);
   const q = query.trim();
-  void loadCrypto().then(() => {
-    const again = searchLocal(query);
-    if (again.length !== local.length) onMore({ items: again, problem: null });
-  });
+  let remoteFound: Instrument[] = [];
+  let problem: string | null = null;
+  const emit = () => {
+    const merged = searchLocal(query, 16);
+    const ids = new Set(merged.map((m) => m.id));
+    onMore({ items: [...merged, ...remoteFound.filter((f) => !ids.has(f.id))].slice(0, 16), problem });
+  };
+  void loadCrypto().then(emit);
   if (remote && q.length >= 2 && !SIM) {
     remote(q)
       .then((found) => {
         for (const f of found) registerInstrument(f);
-        const merged = searchLocal(query, 16);
-        const ids = new Set(merged.map((m) => m.id));
-        onMore({ items: [...merged, ...found.filter((f) => !ids.has(f.id))].slice(0, 16), problem: null });
+        remoteFound = found;
+        emit();
       })
       .catch((err: unknown) => {
         console.warn('[flame] symbol search failed', err);
-        onMore({ items: searchLocal(query), problem: 'Stock search is not answering; showing the built-in list only.' });
+        problem = 'Stock search is not answering; showing the built-in list only.';
+        emit();
       });
   }
   return local;

@@ -20,6 +20,8 @@ interface LevelStore {
   move(instrument: string, id: string, price: number, last?: number): void;
   remove(instrument: string, id: string): void;
   fire(instrument: string, id: string, t: number): void;
+  /** Record which side of an alert the price is on, once a price is known. */
+  arm(instrument: string, id: string, last: number): void;
   hydrate(d: Record<string, Level[]> | undefined): void;
 }
 
@@ -53,6 +55,7 @@ export const useLevels = create<LevelStore>((set, get) => {
     },
     remove: (instrument, id) => commit(instrument, list(instrument).filter((l) => l.id !== id)),
     fire: (instrument, id, t) => commit(instrument, list(instrument).map((l) => (l.id === id ? { ...l, firedAt: t } : l))),
+    arm: (instrument, id, last) => commit(instrument, list(instrument).map((l) => (l.id === id && l.from === undefined ? { ...l, from: last >= l.price ? 'above' : 'below' } : l))),
     hydrate(d) {
       if (d && typeof d === 'object') set({ byInstrument: d });
     },
