@@ -1,6 +1,7 @@
 import { SIM } from '../lib/env';
 import { BinanceAdapter } from './binance';
 import { deribitOptions } from './deribit';
+import { dex } from './dex';
 import { SimAdapter } from './sim';
 import { poly } from './poly';
 import { stocks } from './stocks';
@@ -36,6 +37,8 @@ export function route(instrumentId: string): Route | null {
     const adapter = where && !SIM ? optionVenues.get(where) : undefined;
     return adapter ? { adapter, symbol: name } : null;
   }
+  // A pool is real or it is nothing: the simulated feed does not invent tokens.
+  if (venue === 'dex') return SIM ? null : { adapter: dex, symbol: rest };
   if (SIM && venue !== 'poly') return { adapter: sim, symbol: rest.replace(/[^A-Za-z0-9]/g, '') || rest };
   if (venue === 'crypto') return { adapter: binance, symbol: `${rest}USDT` };
   const adapter = venue ? extra.get(venue) : undefined;

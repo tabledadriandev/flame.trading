@@ -138,3 +138,15 @@ Stops and targets are still checked at each day's close (the cone is built from 
 
 **Options is a view off the rail** (`#options`, `G` then `P`, or "Options" on the desk ticket). The brief puts the chain behind the desk ticket, and the rail has to keep room for Launchpad on a phone.
 
+## What the options review changed (17 November 2026)
+
+A review for silent failures, run after the first options commit was live, found these, all fixed the same day:
+
+- **A spread's bought leg must have the same expiry as the sold one.** "Expires no sooner" let a calendar spread through, whose sold leg could owe far more than the strike gap at its own expiry and take cash deep below zero. With one expiry both legs settle against one price and the gap really is the limit. Calendars and diagonals are not offered.
+- **The forced sale at settlement is bounded**: only what that call owes, and only the shares that stood behind it, so it can never eat the cover of another call.
+- **A venue with its own bid and ask is never filled at its last price.** The old fallback (bid = ask = last) would have filled a resting option limit at the mid.
+- **Liveness is the WebSocket's to prove.** The REST chain refresh no longer counts as evidence that live quotes are arriving, cached ticks are dropped on reconnect, and a late message for a contract nobody watches is ignored.
+- **The ticket says when it has no live price** and why, and says when Deribit declines to quote a contract, instead of showing chain numbers under a "live" label with a button that waits for ever.
+- **ETH options trade in whole contracts** (Deribit's `min_trade_amount`); only BTC trades in tenths.
+- Shares sold at settlement, orders cancelled at expiry, and orders refused during the catch-up are all announced.
+

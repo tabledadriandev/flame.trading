@@ -107,7 +107,7 @@ BTC and ETH options. No key. The browser calls Deribit itself; nothing goes thro
 | One contract, live | WebSocket `wss://www.deribit.com/ws/api/v2`, `public/subscribe` to `ticker.<instrument>.100ms` | Works without signing in. Sends a snapshot at once, then only when something changes: `best_bid_price`, `best_ask_price` (0 when empty), `mark_price`, `mark_iv`, `index_price`, `underlying_price`, and `greeks` |
 | The index | `deribit_price_index.btc_usd` on the same socket | One message a second. Flame uses it to convert to dollars and as proof the connection is alive |
 | Settlement | `GET …/public/get_delivery_prices?index_name=btc_usd&offset=&count=` | `{date: "2026-11-17", delivery_price: 64592.83}` per day, newest first: the index averaged over the half hour before 08:00 UTC |
-| Contract list | `get_instruments?currency=BTC&kind=option&expired=false` | Not needed: every field Flame uses is in the instrument name. Confirms `contract_size` 1, `min_trade_amount` 0.1, `taker_commission` 0.0003 |
+| Contract list | `get_instruments?currency=BTC&kind=option&expired=false` | Not needed: every field Flame uses is in the instrument name. Confirms `contract_size` 1, `taker_commission` 0.0003, and `min_trade_amount` 0.1 for BTC but 1 for ETH |
 
 - **CORS:** the REST API answers `access-control-allow-origin` with the caller's origin. `https://www.deribit.com` and `wss://www.deribit.com` are in `connect-src` in `vercel.json`.
 - **Names:** `BTC-25JUN27-88000-C` is underlying, expiry (08:00 UTC that day), strike, call or put. Strikes below 1 use `d` for the decimal point (`0d55`). Flame's id is `opt:deribit:<name>`.

@@ -3,7 +3,7 @@ import { instrument } from '../data/instruments';
 import { expiredOptions } from '../engine/engine';
 import { optionPayout } from '../engine/rules';
 import type { OptionSpec } from '../engine/types';
-import { dollars, money } from '../lib/format';
+import { dollars, money, qty } from '../lib/format';
 import { useAccount } from './account';
 import { toast } from './toasts';
 
@@ -61,21 +61,36 @@ export async function settleExpired(now = Date.now()): Promise<void> {
         }
         continue;
       }
-      const before = useAccount.getState().live;
-      const held = Object.values(before.positions).filter((p) => p.instrument === id);
-      const events = useAccount.getState().settleOption(id, underlying, spec.expiry);
-      if (held.length === 0) continue;
-      const trade = events.find((e) => e.type === 'closed');
-      const payout = optionPayout(spec, underlying);
-      const what = instrument(id).symbol;
-      const where = `${instrument(spec.underlying).symbol} settled at ${dollars(underlying)}`;
-      const result = trade && trade.type === 'closed' ? ` Result: ${money(trade.trade.pnl, { signed: true })}.` : '';
-      toast(
-        payout > 0
-          ? `${what} expired in the money: ${where}, so each unit was worth ${dollars(payout)}, settled in cash.${result}`
-          : `${what} expired worthless: ${where}.${result}`,
-        { sticky: true },
-      );
+      try {
+        const before = useAccount.getState().live;
+        const held = Object.values(before.positions).filter((p) => p.instrument === id);
+        const working = before.orders.filter((o) => o.status === 'working' && o.instrument === id).length;
+        const sharesKey = held.find((p) => p.cover?.kind === 'shares')?.cover;
+        const sharesBefore = sharesKey && sharesKey.kind === 'shares' ? (before.positions[sharesKey.key]?.qty ?? 0) : 0;
+        const events = useAccount.getState().settleOption(id, underlying, spec.expiry);
+        const what = instrument(id).symbol;
+        if (working > 0) toast(`Your working ${working === 1 ? 'order' : 'orders'} on ${what} ${working === 1 ? 'was' : 'were'} cancelled: the option has expired.`, { sticky: true });
+        if (held.length === 0) continue;
+        const trade = events.find((e) => e.type === 'closed' && e.trade.instrument === id);
+        const payout = optionPayout(spec, underlying);
+        const under = instrument(spec.underlying).symbol;
+        const where = `${under} settled at ${dollars(underlying)}`;
+        const result = trade && trade.type === 'closed' ? ` Result: ${money(trade.trade.pnl, { signed: true })}.` : '';
+        // A covered call that could not be paid from cash sells some of the shares behind it. Never in silence.
+        const sharesAfter = sharesKey && sharesKey.kind === 'shares' ? (useAccount.getState().live.positions[sharesKey.key]?.qty ?? 0) : 0;
+        const sold = sharesBefore - sharesAfter;
+        const forced = sold > 1e-9 ? ` There was not enough cash to pay it, so ${qty(sold, underlying)} ${under} of the cover was sold at ${dollars(underlying)}.` : '';
+        toast(
+          payout > 0
+            ? `${what} expired in the money: ${where}, so each unit was worth ${dollars(payout)}, settled in cash.${result}${forced}`
+            : `${what} expired worthless: ${where}.${result}`,
+          { sticky: true },
+        );
+      } catch (err) {
+        // One contract that cannot be settled must not stop the others.
+        console.error(`[flame] could not settle ${id}`, err);
+        toast(`${instrument(id).symbol} has expired but could not be settled. Flame will try again in a minute.`, { sticky: true });
+      }
     }
   } finally {
     running = false;

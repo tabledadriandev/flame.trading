@@ -51,6 +51,7 @@ export async function catchUp(since: number): Promise<void> {
   const tf = timeframeFor(gap);
   let fills = 0;
   const failed: string[] = [];
+  const refused: string[] = [];
   for (const id of exposed) {
     // Options have no candles to replay. What matters for them is expiry, which is settled separately
     // (state/options.ts) at the venue's own settlement price, however long Flame was closed.
@@ -66,6 +67,7 @@ export async function catchUp(since: number): Promise<void> {
       for (const bar of bars) {
         const events = useAccount.getState().onBar(id, bar, 'live', true, since);
         fills += events.filter((e) => e.type === 'fill' || e.type === 'liquidated').length;
+        for (const e of events) if (e.type === 'rejected') refused.push(`${instrument(id).symbol}: ${e.reason}`);
       }
     } catch (err) {
       console.error(`[flame] could not replay missed candles for ${id}`, err);
@@ -75,6 +77,8 @@ export async function catchUp(since: number): Promise<void> {
   if (fills > 0) {
     toast(`While prices were not being watched, ${fills} ${fills === 1 ? 'order' : 'orders'} filled. They are marked "filled while away" in Fills.`, { sticky: true });
   }
+  // An order that triggered while away and could not be carried out is gone: say which, and why.
+  for (const r of [...new Set(refused)].slice(0, 4)) toast(`While prices were not being watched, an order triggered and was refused. ${r}`, { sticky: true });
   if (failed.length > 0) {
     toast(`Could not check what happened to ${failed.join(', ')} while prices were not being watched. Orders there are evaluated from now on.`, { sticky: true });
   }

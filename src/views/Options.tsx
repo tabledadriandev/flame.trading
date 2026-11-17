@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { OPTION_COINS, fetchChain, optionTick, type Chain, type ChainRow, type Coin, type OptionTick } from '../data/deribit';
+import { OPTION_COINS, fetchChain, optionRefused, optionTick, type Chain, type ChainRow, type Coin, type OptionTick } from '../data/deribit';
 import { instrument } from '../data/instruments';
 import { previewOption } from '../engine/engine';
 import { optionLot, unrealised } from '../engine/rules';
@@ -14,6 +14,7 @@ import { Payoff } from '../options/PayoffChart';
 import { chanceOfProfit, positionGreeks, summarise, type Leg } from '../options/payoff';
 import { closeInput, useAccount } from '../state/account';
 import { quoteFor, watch } from '../state/live';
+import { useMarket } from '../state/market';
 import { useOptionsView } from '../state/optionsView';
 import { engineSettings } from '../state/settings';
 import { Help, NumField, PaneState, Segmented, SideTag, Tabs } from '../ui/controls';
@@ -179,13 +180,13 @@ function sentences(args: {
   const what = instrument(spec.underlying).symbol;
   const n = contractsText(qty / spec.multiplier);
   const premium = qty * price;
-  const fee = preview.fee > 0 ? ` and ${dollars(preview.fee)} in fees` : '';
+  const fee = preview.fee > 0 ? ` and ${dollars(preview.fee, 2)} in fees` : '';
   const sum = summarise([leg]);
   const be = sum.breakevens[0];
   const lines: string[] = [];
 
   if (preview.act === 'close-long' && held) {
-    lines.push(`Sell the ${n} you hold for ${dollars(premium)}${preview.fee > 0 ? `, less ${dollars(preview.fee)} in fees` : ''}.`);
+    lines.push(`Sell the ${n} you hold for ${dollars(premium)}${preview.fee > 0 ? `, less ${dollars(preview.fee, 2)} in fees` : ''}.`);
     lines.push(`Result on this trade: ${money((price - held.entry) * qty - preview.fee, { signed: true })}.`);
     return { lines, chance: null };
   }
@@ -202,7 +203,7 @@ function sentences(args: {
     lines.push(sum.maxGain === Infinity ? 'The most you can make has no limit.' : `The most you can make is ${dollars(sum.maxGain)}, if ${what} falls to zero.`);
     if (be !== undefined) lines.push(`You break even with ${what} ${spec.kind === 'call' ? 'above' : 'below'} ${dollars(be)} at expiry.`);
   } else {
-    lines.push(`Sell ${n} and receive ${dollars(premium)}${preview.fee > 0 ? `, less ${dollars(preview.fee)} in fees` : ''}.`);
+    lines.push(`Sell ${n} and receive ${dollars(premium)}${preview.fee > 0 ? `, less ${dollars(preview.fee, 2)} in fees` : ''}.`);
     const cover = preview.cover;
     if (cover?.kind === 'shares') {
       lines.push(`The ${qty} ${what} you hold cover it and cannot be sold until it is closed or expires.`);
@@ -220,7 +221,8 @@ function sentences(args: {
   return { lines, chance: chanceOfProfit([leg], spot, now) };
 }
 
-function Ticket({ row, side, onSide, chainIndex }: { row: ChainRow; side: 'buy' | 'sell'; onSide: (s: 'buy' | 'sell') => void; chainIndex: number }) {
+function Ticket({ row, side, onSide, chainIndex, chainAt }: { row: ChainRow; side: 'buy' | 'sell'; onSide: (s: 'buy' | 'sell') => void; chainIndex: number; chainAt: number }) {
+  const feed = useMarket((s) => s.feeds.deribit);
   const account = useAccount((s) => s.live);
   const now = useNow(500);
   const name = venueName(row.id);
@@ -251,6 +253,9 @@ function Ticket({ row, side, onSide, chainIndex }: { row: ChainRow; side: 'buy' 
   const limit = limitText === null ? Number(mid.toFixed(mid >= 100 ? 0 : 2)) : parseNumber(limitText);
   const price = type === 'limit' ? limit : (touch ?? NaN);
   const q = quoteFor(row.id);
+  const gone = optionRefused(name);
+  // Before a live quote arrives the preview still needs the underlying's price, or the fee would show as its cap.
+  const ref = q ?? { bid: bid ?? 0, ask: ask ?? Infinity, last: mid, t: now, underlying: index };
   const input: OrderInput = { instrument: row.id, cls: 'option', mode: 'spot', side, type, qty, option: spec, ...(type === 'limit' ? { limit } : {}) };
 
   const long = account.positions[posKey(row.id, 'spot')];
@@ -262,9 +267,10 @@ function Ticket({ row, side, onSide, chainIndex }: { row: ChainRow; side: 'buy' 
   if (!(n > 0)) problem = 'Enter how many contracts.';
   else if (!(price > 0) || !Number.isFinite(price)) problem = type === 'limit' ? 'Enter a limit price.' : side === 'buy' ? 'Nobody is offering this option right now. Use a limit order.' : 'Nobody is bidding for this option right now. Use a limit order.';
   else {
-    preview = previewOption(account, input, price, q, engineSettings(), now);
+    preview = previewOption(account, input, price, ref, engineSettings(), now);
     if ('error' in preview) problem = preview.error;
   }
+  if (gone) problem = 'Deribit is not quoting this contract any more: it may have expired since the chain was read. Refresh the chain and pick another.';
   const waiting = !q && !problem;
 
   const leg: Leg = { spec, side, qty, price: Number.isFinite(price) ? price : mid, iv, carry: index > 0 ? forward / index : 1 };
@@ -272,8 +278,10 @@ function Ticket({ row, side, onSide, chainIndex }: { row: ChainRow; side: 'buy' 
   const rests = type === 'limit' && touch !== null && (side === 'buy' ? limit < touch : limit > touch);
 
   function submit() {
-    if (problem || !q) return;
-    useAccount.getState().place(input, q);
+    // The price is read at the moment of the click, not when the ticket was last drawn.
+    const at = quoteFor(row.id);
+    if (problem || !at) return;
+    useAccount.getState().place(input, at);
   }
 
   return (
@@ -308,6 +316,12 @@ function Ticket({ row, side, onSide, chainIndex }: { row: ChainRow; side: 'buy' 
           },
         ]}
       />
+
+      {!tick && !gone ? (
+        <p className="opt-stale opt-stale-inline" role="status">
+          {feed === 'down' ? 'Live prices from Deribit cannot be reached.' : feed === 'reconnecting' ? 'Live prices from Deribit dropped; Flame is reconnecting.' : 'Waiting for a live price from Deribit.'} The numbers below are from the chain read at {clock(chainAt)} and cannot be traded against.
+        </p>
+      ) : null}
 
       <dl className="opt-quote num">
         <div>
@@ -549,6 +563,7 @@ export function Options() {
 
   useEffect(() => {
     setChain(null);
+    setError(null);
     setPick(null);
     setExpiry(null);
     load();
@@ -601,7 +616,7 @@ export function Options() {
             {coin} index <strong>{dollars(chain.index)}</strong>
           </span>
         ) : null}
-        <span className="opt-asof sub">{chain ? `Chain read at ${clock(chain.t)}; it refreshes every 20 seconds. The contract in the ticket is live.` : ''}</span>
+        <span className="opt-asof sub">{chain ? `Chain read at ${clock(chain.t)}; it refreshes every 20 seconds. The contract in the ticket streams live.` : ''}</span>
         <button type="button" className="btn btn-sm" onClick={load} disabled={busy}>
           <RefreshCw size={12} aria-hidden="true" /> Refresh
         </button>
@@ -654,7 +669,7 @@ export function Options() {
 
           <div className="opt-side" ref={ticket}>
             {picked && pick ? (
-              <Ticket key={picked.id} row={picked} side={pick.side} onSide={(side) => setPick({ id: picked.id, side })} chainIndex={chain.index} />
+              <Ticket key={picked.id} row={picked} side={pick.side} onSide={(side) => setPick({ id: picked.id, side })} chainIndex={chain.index} chainAt={chain.t} />
             ) : (
               <PaneState title="Pick a contract">Click an ask price in the chain to buy that option, or a bid to sell it. The ticket shows what it costs, the most you can lose and make, and the payoff.</PaneState>
             )}

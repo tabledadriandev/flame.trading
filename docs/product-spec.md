@@ -157,13 +157,13 @@ These are the engine's contract. Each line needs a test.
 - Stock orders outside market hours rest until the open, unless the user chooses "fill at last close" in settings.
 
 **Options** (`src/engine/options.test.ts` has a test for each line)
-- A stock option contract covers 100 shares. A Deribit option covers 1 coin, trades in steps of 0.1 contracts, and is quoted in the coin; Flame converts to dollars at the index price.
+- A stock option contract covers 100 shares. A Deribit option covers 1 coin, trades in steps of 0.1 contracts for BTC and whole contracts for ETH, and is quoted in the coin; Flame converts to dollars at the index price.
 - Buying costs the premium, and the premium (with the fee) is the most the position can lose.
-- Selling opens a position only when it is covered: a call against shares or coins already held (a covered call), a put against cash equal to the strike for every unit, set aside (a cash-secured put), or either against a bought option of the same kind on the same underlying that expires no sooner (a spread; what the pair can lose at expiry is set aside). Of the covers available, the one that sets aside the least cash is used. There are no uncovered short options, and the refusal says why.
-- What covers a sold option cannot be sold while it does.
+- Selling opens a position only when it is covered: a call against shares or coins already held (a covered call), a put against cash equal to the strike for every unit, set aside (a cash-secured put), or either against a bought option of the same kind on the same underlying with the same expiry (a spread; what the pair can lose at expiry is set aside). Of the covers available, the one that sets aside the least cash is used. There are no uncovered short options, and the refusal says why.
+- What covers a sold option cannot be sold while it does. A stop or target on shares that partly cover a call sells only the part that is free.
 - Buys fill at the ask and sells at the bid. A limit rests until the other side reaches it. No stops, take-profits or stop-losses on options. Positions are marked at the mid.
 - Nothing liquidates a sold option: it is fully covered.
-- At expiry every option settles in cash at what it is worth: `max(0, underlying − strike)` for a call, `max(0, strike − underlying)` for a put, times the size. A covered call that finishes in the money is paid in cash; if the cash is short, enough of the covering shares are sold at the settlement price. Real stock options settle in shares and can be assigned early; Flame does neither, and says so.
+- At expiry every option settles in cash at what it is worth: `max(0, underlying − strike)` for a call, `max(0, strike − underlying)` for a put, times the size. A covered call that finishes in the money is paid in cash; if the cash is short, enough of the shares behind that call are sold at the settlement price to pay what it owes, and the notice says how many. Real stock options settle in shares and can be assigned early; Flame does neither, and says so.
 - Expiry is checked at start and once a minute, and settles at the venue's own settlement price for that expiry (Deribit's delivery price), so an option that expired while Flame was closed settles at the price of that moment.
 - Not offered in Replay.
 

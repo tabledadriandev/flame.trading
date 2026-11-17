@@ -147,6 +147,8 @@ export interface Position {
   /** Present on option positions. A bought option is held 'spot'; a sold one is held 'lev' with its cover. */
   option?: OptionSpec;
   cover?: Cover;
+  /** For an on-chain token: the pool's liquidity when the position was opened, to tell later if it was drained. */
+  liquidity0?: number;
   tradeId: string;
   openedAt: number;
 }
@@ -186,6 +188,8 @@ export interface TradeRec {
   mfe: number;
   fillIds: string[];
   liquidated?: boolean;
+  /** An on-chain token whose pool had lost nine tenths of its liquidity by the time the position was sold. */
+  rugged?: boolean;
   away?: boolean;
   review?: Review;
   /** Small chart snapshot at entry: closes of the bars before the entry. */

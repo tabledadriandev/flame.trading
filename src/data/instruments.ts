@@ -125,6 +125,8 @@ export function instrument(id: string): Instrument {
   const [venue, rest = ''] = id.split(/:(.*)/s);
   if (venue === 'crypto') return C(rest, rest);
   if (venue === 'poly') return { id, symbol: 'Market', name: 'Prediction market', kind: 'odds', cls: 'odds', tradable: true };
+  // A pool is named when it is first read (state/tokens.ts); until then it is only an address.
+  if (venue === 'dex') return { id, symbol: 'Token', name: 'On-chain token', kind: 'token', cls: 'meme', tradable: true };
   if (venue === 'opt') {
     // An option's id is the whole contract, so its name can always be read back from it.
     const spec = parseOptionId(id);
@@ -141,7 +143,9 @@ export function priceDecimals(price: number): number {
   if (p >= 100) return 2;
   if (p >= 1) return p >= 10 ? 2 : 3;
   if (p >= 0.01) return 5;
-  return 8;
+  if (p >= 0.000001) return 8;
+  // A token can cost a millionth of a cent: keep four significant digits.
+  return Math.min(18, Math.ceil(-Math.log10(p)) + 3);
 }
 
 /** Decimals to show for a size, so that a dollar of the asset is still visible. */

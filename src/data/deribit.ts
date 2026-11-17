@@ -100,6 +100,7 @@ export async function fetchChain(coin: Coin): Promise<Chain> {
   const raw = await call<unknown>('get_book_summary_by_currency', { currency: coin, kind: 'option' });
   const chain = chainFromSummary(coin, raw, Date.now());
   if (chain.rows.length === 0) throw new FeedError('Deribit sent an option chain with nothing Flame could read in it.', 'Deribit');
+  // Only the price is kept from here. Whether the live connection is alive is the WebSocket's to say (liveAt).
   indexPrice[coin] = { price: chain.index, t: chain.t };
   return chain;
 }
@@ -117,7 +118,8 @@ export async function deliveryPrice(coin: Coin, expiry: number): Promise<number 
     offset: String(Math.max(0, age - 2)),
     count: '10',
   });
-  const hit = res.data?.find((d) => d.date === day);
+  if (!Array.isArray(res.data)) throw new FeedError('Deribit sent a list of settlement prices Flame could not read.', 'Deribit');
+  const hit = res.data.find((d) => d.date === day);
   return hit && typeof hit.delivery_price === 'number' && hit.delivery_price > 0 ? hit.delivery_price : null;
 }
 
@@ -135,9 +137,26 @@ export interface OptionTick {
 }
 
 const indexPrice: Partial<Record<Coin, { price: number; t: number }>> = {};
+/** When the WebSocket last sent an index price for each coin: the proof that live quotes are still arriving. */
+const liveAt: Partial<Record<Coin, number>> = {};
 const ticks = new Map<string, OptionTick>();
 const subs = new Map<string, Set<(t: OptionTick) => void>>();
+/** Contracts Deribit would not subscribe: expired or delisted since the chain was read. */
+const refused = new Set<string>();
+/** Subscribe requests waiting for their reply, by request id. */
+const pending = new Map<number, string[]>();
 let rpcId = 0;
+
+function subscribe(send: (payload: unknown) => boolean | void, channels: string[]): void {
+  if (channels.length === 0) return;
+  const id = ++rpcId;
+  pending.set(id, channels);
+  if (pending.size > 50) pending.delete(pending.keys().next().value as number);
+  send({ jsonrpc: '2.0', id, method: 'public/subscribe', params: { channels } });
+}
+
+/** True when Deribit declined to quote this contract. The ticket says so instead of waiting for ever. */
+export const optionRefused = (name: string): boolean => refused.has(name);
 
 const channel = (name: string): string => `ticker.${name}.100ms`;
 const indexChannel = (coin: Coin): string => `deribit_price_index.${coin.toLowerCase()}_usd`;
@@ -174,11 +193,35 @@ export function tickFromTicker(d: Record<string, unknown>, now: number): OptionT
 }
 
 function onMessage(text: string): void {
-  let msg: { method?: string; params?: { channel?: string; data?: Record<string, unknown> } };
+  let msg: { id?: number; result?: unknown; error?: { message?: string; code?: number }; method?: string; params?: { channel?: string; data?: Record<string, unknown> } };
   try {
     msg = JSON.parse(text) as typeof msg;
   } catch {
     console.warn('[flame] Deribit sent a message that is not JSON');
+    return;
+  }
+  if (msg.error) {
+    console.error(`[flame] Deribit refused a request (${msg.error.code ?? '?'}): ${msg.error.message ?? 'no reason given'}`);
+    if (typeof msg.id === 'number') pending.delete(msg.id);
+    return;
+  }
+  // The reply to a subscribe lists the channels Deribit accepted. One that is missing is a contract it no
+  // longer has: say so, do not wait for a quote that will never come.
+  if (typeof msg.id === 'number' && pending.has(msg.id)) {
+    const asked = pending.get(msg.id)!;
+    pending.delete(msg.id);
+    if (Array.isArray(msg.result)) {
+      const got = new Set(msg.result);
+      for (const c of asked) {
+        const m = /^ticker\.(.+)\.100ms$/.exec(c);
+        if (!m) continue;
+        if (got.has(c)) refused.delete(m[1]!);
+        else {
+          refused.add(m[1]!);
+          console.warn(`[flame] Deribit does not quote ${m[1]}`);
+        }
+      }
+    }
     return;
   }
   const ch = msg.params?.channel;
@@ -188,11 +231,17 @@ function onMessage(text: string): void {
   if (ch.startsWith('deribit_price_index.')) {
     const coin = ch.endsWith('btc_usd') ? 'BTC' : ch.endsWith('eth_usd') ? 'ETH' : null;
     const p = num(data.price);
-    if (coin && p !== null && p > 0) indexPrice[coin] = { price: p, t: now };
+    if (coin && p !== null && p > 0) {
+      indexPrice[coin] = { price: p, t: now };
+      liveAt[coin] = now;
+    }
     return;
   }
   if (ch.startsWith('ticker.')) {
-    const name = typeof data.instrument_name === 'string' ? data.instrument_name : '';
+    // The name comes from the channel, and a late message for a contract nobody is watching any more is dropped:
+    // kept, it would be handed to the next subscriber as if it were new.
+    const name = ch.slice('ticker.'.length, ch.lastIndexOf('.'));
+    if (!subs.has(name)) return;
     const tick = tickFromTicker(data, now);
     if (!tick) return;
     ticks.set(name, tick);
@@ -205,8 +254,8 @@ const socket = new ManagedSocket({
   onOpen: (send) => {
     // Whatever was known before the connection dropped is old now: wait for the fresh snapshot of each contract.
     ticks.clear();
-    const channels = wantedChannels();
-    if (channels.length > 0) send({ jsonrpc: '2.0', id: ++rpcId, method: 'public/subscribe', params: { channels } });
+    pending.clear();
+    subscribe(send, wantedChannels());
   },
   onMessage,
   silenceMs: 30_000,
@@ -222,7 +271,7 @@ export function subscribeOption(name: string, on: (t: OptionTick) => void): Unsu
   }
   set.add(on);
   if (subs.size === 1 && fresh) socket.start();
-  if (fresh) socket.send({ jsonrpc: '2.0', id: ++rpcId, method: 'public/subscribe', params: { channels: wantedChannels() } });
+  if (fresh) subscribe((p) => socket.send(p), wantedChannels());
   const known = ticks.get(name);
   if (known) on(known);
   return () => {
@@ -232,20 +281,21 @@ export function subscribeOption(name: string, on: (t: OptionTick) => void): Unsu
     if (s.size > 0) return;
     subs.delete(name);
     ticks.delete(name);
+    refused.delete(name);
     socket.send({ jsonrpc: '2.0', id: ++rpcId, method: 'public/unsubscribe', params: { channels: [channel(name)] } });
     if (subs.size === 0) socket.stop();
   };
 }
 
-/** How old a quote may be and still be traded against. A quiet contract's ticker only speaks when it changes, so the index's age is the test. */
+/** How old a quote may be and still be traded against. A quiet contract's ticker only speaks when it changes, so the test is how long ago the WebSocket last sent the index. */
 const FRESH = 20_000;
 
 /** The last tick for a contract, if the connection is alive. */
 export function optionTick(name: string): OptionTick | undefined {
   const tick = ticks.get(name);
   const coin = coinOfName(name);
-  const idx = coin ? indexPrice[coin] : undefined;
-  if (!tick || !idx || socket.status() !== 'live' || Date.now() - idx.t > FRESH) return undefined;
+  const alive = coin ? liveAt[coin] : undefined;
+  if (!tick || alive === undefined || socket.status() !== 'live' || Date.now() - alive > FRESH) return undefined;
   return tick;
 }
 

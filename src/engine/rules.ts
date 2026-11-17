@@ -19,13 +19,15 @@ export interface ClassRules {
 export function rulesFor(cls: AssetClass, s: EngineSettings): ClassRules {
   if (cls === 'crypto') return { taker: s.fees.cryptoTaker, maker: s.fees.cryptoMaker, mmr: 0.005, maxLeverage: 20 };
   if (cls === 'stock') return { taker: s.fees.stock, maker: s.fees.stock, mmr: 0.25, maxLeverage: 2 };
+  // A token's fee is its pool's, read from the quote at the time of the trade.
+  if (cls === 'meme') return { taker: 0, maker: 0, mmr: 0, maxLeverage: 1 };
   // Options charge per contract or as a share of the underlying, not of the premium: see optionFee.
   if (cls === 'option') return { taker: 0, maker: 0, mmr: 0, maxLeverage: 1 };
   return { taker: s.fees.odds, maker: s.fees.odds, mmr: 0, maxLeverage: 1 };
 }
 
-/** The smallest size an option trades in, in contracts. */
-export const optionLot = (spec: OptionSpec): number => (spec.venue === 'deribit' ? 0.1 : 1);
+/** The smallest size an option trades in, in contracts. Deribit: 0.1 for BTC and 1 for ETH (its instrument list, 17 November 2026). */
+export const optionLot = (spec: OptionSpec): number => (spec.venue === 'deribit' && spec.underlying === 'crypto:BTC' ? 0.1 : 1);
 
 /** What an option pays per unit of the underlying if it expired with the underlying at this price. */
 export function optionPayout(spec: OptionSpec, underlying: number): number {

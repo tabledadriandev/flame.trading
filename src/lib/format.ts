@@ -108,3 +108,43 @@ export function parseNumber(text: string): number {
   const mult = m[2] === 'k' || m[2] === 'K' ? 1e3 : m[2] === 'm' || m[2] === 'M' ? 1e6 : 1;
   return parseFloat(m[1]!) * mult;
 }
+
+const SUBSCRIPT = '₀₁₂₃₄₅₆₇₈₉';
+
+/**
+ * A token price, which can be a millionth of a cent. Small prices keep four
+ * significant digits; very small ones count the zeros after the point as a
+ * subscript ($0.0₅4821 is five zeros, then 4821), the way pool screens do.
+ */
+export function tokenPrice(n: number | undefined | null): string {
+  if (n === undefined || n === null || !Number.isFinite(n) || n <= 0) return '—';
+  if (n >= 1) return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: n >= 100 ? 2 : 4 });
+  let zeros = Math.max(0, -Math.floor(Math.log10(n)) - 1);
+  let digits = Math.round(n * 10 ** (zeros + 4));
+  // Rounding can carry into the zeros: 0.00099996 is 0.001000.
+  if (digits >= 10_000) {
+    digits = 1_000;
+    zeros -= 1;
+  }
+  if (zeros < 0) return '$1.00';
+  const tail = String(digits).padStart(4, '0').replace(/0+$/, '') || '0';
+  if (zeros < 4) return '$0.' + '0'.repeat(zeros) + tail;
+  const count = String(zeros)
+    .split('')
+    .map((d) => SUBSCRIPT[Number(d)])
+    .join('');
+  return '$0.0' + count + tail;
+}
+
+/** How long ago, in one unit: 20m, 3h, 5d, 8mo, 2y. */
+export function age(ms: number): string {
+  const m = Math.max(0, ms) / 60_000;
+  if (m < 1) return 'now';
+  if (m < 60) return Math.floor(m) + 'm';
+  const h = m / 60;
+  if (h < 48) return Math.floor(h) + 'h';
+  const d = h / 24;
+  if (d < 60) return Math.floor(d) + 'd';
+  if (d < 730) return Math.floor(d / 30.44) + 'mo';
+  return Math.floor(d / 365.25) + 'y';
+}

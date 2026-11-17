@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAccount, evaluate, expiredOptions, lockedQty, placeOrder, setBrackets, settleOption, valuation } from './engine';
+import { amendOrder, createAccount, evaluate, expiredOptions, lockedQty, placeOrder, setBrackets, settleOption, valuation } from './engine';
 import { DEFAULT_SETTINGS, posKey, type Account, type EngineSettings, type OptionSpec, type OrderInput, type Quote } from './types';
 
 // One test, at least, for every option rule in docs/brief-02-every-market.md.
@@ -275,6 +275,57 @@ describe('expiry', () => {
     expect(expiredOptions(a, EXPIRY + 1)).toHaveLength(1);
     const r = settleOption(a, id(spec), 150, S, EXPIRY);
     expect(r.account.orders.filter((o) => o.status === 'working')).toHaveLength(0);
+  });
+
+  it('a bought option that expires later is not cover: its loss would be open at the first expiry', () => {
+    const later = stockOpt('call', 200, EXPIRY + 30 * 86_400_000);
+    const a = place(createAccount(10_000, T0), order(later, 'buy', 1), quote(8, 8.4)).account;
+    expect(reason(place(a, order(stockOpt('call', 190), 'sell', 1), quote(11, 11.4)).events)).toMatch(/with the same expiry/);
+  });
+
+  it('shares are sold only for what this call owes, and never those behind another call', () => {
+    // 100 shares bought with all the cash; a 210 call sold against 50 of them and a later 260 call against the other 50.
+    const near = { ...stockOpt('call', 210), multiplier: 50 };
+    const far = { ...stockOpt('call', 260, EXPIRY + 30 * 86_400_000), multiplier: 50 };
+    let a = holding('stock:AAPL', 'stock', 100, 200, 20_002);
+    a = place(a, order(near, 'sell', 1), quote(2, 2.2)).account;
+    a = place(a, order(far, 'sell', 1), quote(1, 1.2)).account;
+    const cash = a.cash;
+    // At 250 the near call owes 50 × $40 = $2,000; there is about $149 of cash.
+    const settled = settleOption(a, id(near), 250, S, EXPIRY).account;
+    expect(settled.cash).toBeCloseTo(0, 6);
+    const sold = 100 - settled.positions[posKey('stock:AAPL', 'spot')]!.qty;
+    expect(sold).toBeCloseTo((2_000 - cash) / 250, 9);
+    // The 50 shares behind the later call are all still there.
+    expect(settled.positions[posKey('stock:AAPL', 'spot')]!.qty).toBeGreaterThanOrEqual(50);
+    expect(lockedQty(settled, posKey('stock:AAPL', 'spot'))).toBe(50);
+  });
+
+  it('a stop on shares that partly cover a call sells the free part and leaves the rest', () => {
+    const spec = stockOpt('call', 210);
+    const px = (p: number) => ({ bid: p, ask: p, last: p, t: T0 });
+    let a = placeOrder(createAccount(100_000, T0), { instrument: 'stock:AAPL', cls: 'stock', mode: 'spot', side: 'buy', type: 'market', qty: 150, sl: 180 }, px(200), S, T0).account;
+    a = place(a, order(spec, 'sell', 1), quote(2, 2.2)).account;
+    const hit = evaluate(a, 'stock:AAPL', px(179), S);
+    expect(hit.events.find((e) => e.type === 'fill')).toMatchObject({ fill: { qty: 50, side: 'sell' } });
+    expect(hit.account.positions[posKey('stock:AAPL', 'spot')]!.qty).toBe(100);
+    expect(lockedQty(hit.account, posKey('stock:AAPL', 'spot'))).toBe(100);
+  });
+
+  it('ETH options on Deribit trade in whole contracts; BTC in tenths', () => {
+    const eth: OptionSpec = { underlying: 'crypto:ETH', kind: 'call', strike: 2_000, expiry: EXPIRY, multiplier: 1, venue: 'deribit' };
+    expect(reason(place(createAccount(), order(eth, 'buy', 0.1), quote(40, 42, 1_800)).events)).toBe('Options trade in whole contracts.');
+    expect(place(createAccount(), order(eth, 'buy', 1), quote(40, 42, 1_800)).events[0]?.type).toBe('fill');
+  });
+
+  it('changing the size of a working order keeps to whole lots', () => {
+    const spec = stockOpt('call', 200);
+    const rested = place(createAccount(100_000, T0), order(spec, 'buy', 2, { type: 'limit', limit: 3 }), quote(3.9, 4.1));
+    const oid = rested.account.orders[0]!.id;
+    const bad = amendOrder(rested.account, oid, { qty: 150 }, S);
+    expect(reason(bad.events)).toBe('Options trade in whole contracts.');
+    expect(bad.account.orders[0]!.qty).toBe(200);
+    expect(amendOrder(rested.account, oid, { qty: 300 }, S).account.orders[0]!.qty).toBe(300);
   });
 
   it("the drawer's close order needs no contract details: the position carries them", () => {

@@ -11,6 +11,7 @@ import {
   rulesFor,
   unrealised,
 } from './rules';
+import { costToBuy, isDrained, poolLiquidity, poolOrderCap, sellToPool, type Pool } from './pool';
 import {
   posKey,
   type Account,
@@ -49,6 +50,9 @@ interface Draft {
   dirty: boolean;
   /** The underlying's price that came with the quote being acted on, for option fees. */
   ref?: number;
+  /** The pool an on-chain token order is filling against, and any tax its contract takes from a sale. */
+  pool?: Pool;
+  sellTax?: number;
 }
 
 function draft(a: Account, s: EngineSettings): Draft {
@@ -187,6 +191,7 @@ function openPosition(d: Draft, o: Order, qty: number, price: number, margin: nu
     tradeId: tr.id,
     openedAt: t,
     ...(o.option ? { option: o.option } : {}),
+    ...(o.cls === 'meme' && d.pool ? { liquidity0: poolLiquidity(d.pool) } : {}),
   };
   putTrade(d, tr);
   return tr;
@@ -294,7 +299,10 @@ function findCover(d: Draft, instrument: string, spec: OptionSpec, qty: number, 
     for (const p of Object.values(d.a.positions)) {
       const o = p.option;
       if (!o || p.mode !== 'spot' || p.instrument === instrument) continue;
-      if (o.underlying !== spec.underlying || o.kind !== spec.kind || o.multiplier !== spec.multiplier || o.expiry < spec.expiry) continue;
+      // The bought leg must expire at the same moment: then both settle against one price and the gap between
+      // the strikes really is the most the pair can lose. A leg that outlives the sold one would leave its
+      // loss uncovered at the first expiry.
+      if (o.underlying !== spec.underlying || o.kind !== spec.kind || o.multiplier !== spec.multiplier || o.expiry !== spec.expiry) continue;
       if (existing?.cover?.kind === 'spread' && existing.cover.key !== p.key) continue;
       if (p.qty - lockedQty(d.a, p.key) < qty - tol) continue;
       // The most the pair can lose at expiry is the gap between the strikes, when the sold one is the richer.
@@ -309,7 +317,7 @@ function findCover(d: Draft, instrument: string, spec: OptionSpec, qty: number, 
     return {
       error:
         spec.kind === 'call'
-          ? `Selling a call needs cover: hold ${qty} ${what} (a covered call), or hold a call on ${what} that expires no sooner (a spread). Flame does not allow uncovered short options, because their loss has no limit.`
+          ? `Selling a call needs cover: hold ${qty} ${what} (a covered call), or hold a call on ${what} with the same expiry (a spread). Flame does not allow uncovered short options, because their loss has no limit.`
           : `Selling a put needs cover. Flame does not allow uncovered short options.`,
     };
   }
@@ -370,6 +378,8 @@ function executeOption(d: Draft, o: Order, qty: number, price: number, liquidity
   const spec = o.option;
   if (!spec) return { error: 'This order does not say which option contract it is for.' };
   if (t >= spec.expiry) return { error: 'This option has expired.' };
+  // Whatever path led here, an option never changes hands at no price or at an impossible one.
+  if (!(price > 0) || !Number.isFinite(price)) return { error: o.side === 'buy' ? 'Nobody is offering this option right now.' : 'Nobody is bidding for this option right now.' };
   const fee = optionFee(d.s, spec, qty, price, d.ref);
   const plan = planOption(d, o, qty, price, fee);
   if ('error' in plan) return plan;
@@ -426,7 +436,8 @@ function execute(
 ): { fill: Fill } | { error: string } {
   if (o.cls === 'option') return executeOption(d, o, qty, price, liquidity, t, away);
   const r = rulesFor(o.cls, d.s);
-  const rate = liquidity === 'maker' ? r.maker : liquidity === 'taker' ? r.taker : 0;
+  // A token pays its pool's fee, and on a sale whatever tax its contract takes.
+  const rate = o.cls === 'meme' ? (d.pool?.fee ?? 0) + (o.side === 'sell' ? (d.sellTax ?? 0) : 0) : liquidity === 'maker' ? r.maker : liquidity === 'taker' ? r.taker : 0;
   const key = posKey(o.instrument, o.mode);
   const pos = d.a.positions[key];
   const notional = qty * price;
@@ -447,7 +458,13 @@ function execute(
     const sell = Math.min(qty, pos.qty);
     const sellFee = sell * price * rate;
     d.a.cash += sell * price - sellFee;
-    const tr = reducePosition(d, pos, sell, price, (price - pos.entry) * sell, sellFee, t, { away });
+    let tr = reducePosition(d, pos, sell, price, (price - pos.entry) * sell, sellFee, t, { away });
+    // A token sold out of a pool that has lost nine tenths of its liquidity since the entry was rugged.
+    if (tr.closedAt !== undefined && pos.liquidity0 !== undefined && d.pool && isDrained(pos.liquidity0, poolLiquidity(d.pool))) {
+      tr = { ...tr, rugged: true };
+      putTrade(d, tr);
+      d.events = d.events.map((e) => (e.type === 'closed' && e.trade.id === tr.id ? { ...e, trade: tr } : e));
+    }
     return { fill: attach(d, tr, recordFill(d, o, tr.id, sell, price, sellFee, liquidity, t, away)) };
   }
 
@@ -566,6 +583,21 @@ function fillAtMarket(d: Draft, o: Order, q: Quote, away?: boolean): void {
   let qty = o.qty;
   if (o.role !== 'entry' && pos) qty = pos.qty;
   else if (o.reduceOnly && pos) qty = Math.min(o.qty, pos.qty);
+  // A stop or target on shares that partly cover a sold call sells the part that is free.
+  if (o.role !== 'entry' && pos && pos.mode === 'spot') {
+    const free = pos.qty - lockedQty(d.a, pos.key);
+    if (free <= EPS * Math.max(1, pos.qty)) {
+      reject(d, o, coveringMessage(o.instrument, pos.qty));
+      return;
+    }
+    qty = Math.min(qty, free);
+  }
+  // A token fills against its pool: the price is whatever the constant-product curve gives for this size.
+  if (o.cls === 'meme' && q.pool) {
+    const trade = o.side === 'buy' ? costToBuy(q.pool, qty) : sellToPool(q.pool, qty);
+    fillOrder(d, o, qty, trade.price, 'taker', q.t, away);
+    return;
+  }
   // An option has no last trade worth filling at: a buy pays the ask and a sale gets the bid.
   const mf = o.cls === 'option' && !q.book ? { qty, price: o.side === 'buy' ? q.ask : q.bid } : marketFill(q, o.side, qty);
   fillOrder(d, o, mf.qty, mf.price, 'taker', q.t, away);
@@ -587,7 +619,15 @@ function tryOrder(d: Draft, o: Order, q: Quote, away?: boolean): void {
   } else if (o.type === 'limit' && o.limit !== undefined) {
     // A resting limit fills, as a maker, when the opposite best quote reaches it.
     if (o.side === 'buy' ? q.ask <= o.limit : q.bid >= o.limit) {
-      const qty = o.role !== 'entry' && pos ? pos.qty : o.reduceOnly && pos ? Math.min(o.qty, pos.qty) : o.qty;
+      let qty = o.role !== 'entry' && pos ? pos.qty : o.reduceOnly && pos ? Math.min(o.qty, pos.qty) : o.qty;
+      if (o.role !== 'entry' && pos && pos.mode === 'spot') {
+        const free = pos.qty - lockedQty(d.a, pos.key);
+        if (free <= EPS * Math.max(1, pos.qty)) {
+          reject(d, o, coveringMessage(o.instrument, pos.qty));
+          return;
+        }
+        qty = Math.min(qty, free);
+      }
       fillOrder(d, o, qty, o.limit, 'maker', q.t, away);
     }
   }
@@ -643,6 +683,21 @@ function validate(d: Draft, o: Order, q: Quote | undefined, t: number): string |
   if (o.type === 'limit' && !(o.limit !== undefined && o.limit > 0)) return 'Enter a limit price.';
   if (o.type === 'stop' && !(o.stop !== undefined && o.stop > 0)) return 'Enter a stop price.';
   if (o.cls === 'option') return validateOption(d, o, q, t);
+  if (o.cls === 'meme') {
+    if (o.mode !== 'spot') return 'Tokens trade spot only: no leverage and no shorting.';
+    if (o.type !== 'market') return 'A pool has no order book to rest an order in: token orders fill at once, at the pool\'s price.';
+    if (o.tp !== undefined || o.sl !== undefined) return 'Take-profit and stop-loss are not offered on tokens: nothing guarantees the pool will still be there.';
+    if (!q?.pool) return 'There is no fresh reading of the pool to fill against.';
+    if (o.side === 'buy') {
+      const cost = costToBuy(q.pool, o.qty).dollars;
+      const cap = poolOrderCap(q.pool);
+      if (!(cost <= cap * (1 + 1e-9))) {
+        return `One order may not be more than 2% of the pool's liquidity (${usd(cap)} here). A bigger position could not be sold back without moving the price against you.`;
+      }
+    } else if (q.sellBlocked) {
+      return `This sale would fail. ${q.sellBlocked}`;
+    }
+  }
   const r = rulesFor(o.cls, d.s);
   const pos = d.a.positions[posKey(o.instrument, o.mode)];
 
@@ -679,6 +734,8 @@ function validate(d: Draft, o: Order, q: Quote | undefined, t: number): string |
 export function placeOrder(a: Account, input: OrderInput, q: Quote | undefined, s: EngineSettings, t: number): Result {
   const d = draft(a, s);
   d.ref = q?.underlying;
+  if (q?.pool) d.pool = q.pool;
+  if (q?.sellTax !== undefined) d.sellTax = q.sellTax;
   let o: Order = { ...input, id: nextId(d, 'o'), status: 'working', role: 'entry', createdAt: t };
   if (o.cls === 'option') {
     // The ticket says buy or sell; the engine works out whether that opens or closes. An order that closes a
@@ -752,6 +809,13 @@ export function amendOrder(
   if (patch.limit !== undefined && patch.limit > 0 && o.limit !== undefined) next.limit = patch.limit;
   if (patch.stop !== undefined && patch.stop > 0 && o.stop !== undefined) next.stop = patch.stop;
   if (patch.qty !== undefined && patch.qty > 0) next.qty = patch.qty;
+  if (next.cls === 'option' && next.option && next.qty !== o.qty) {
+    const steps = next.qty / (optionLot(next.option) * next.option.multiplier);
+    if (steps < 1 - 1e-6 || Math.abs(steps - Math.round(steps)) > 1e-6) {
+      d.events.push({ type: 'rejected', order: o, reason: optionLot(next.option) === 1 ? 'Options trade in whole contracts.' : `Size goes in steps of ${optionLot(next.option)} contracts.` });
+      return finish(d);
+    }
+  }
   if (q && q.open !== false) {
     let problem: string | null = null;
     if (next.stop !== undefined && next.stop !== o.stop) {
@@ -937,7 +1001,9 @@ export function settleOption(a: Account, instrument: string, underlying: number,
     if (mode === 'lev' && pos.cover?.kind === 'shares' && d.a.cash < -EPS && underlying > 0) {
       const shares = d.a.positions[pos.cover.key];
       if (shares) {
-        const sell = Math.min(shares.qty, -d.a.cash / underlying);
+        // Never more than this call owed, and never more shares than stood behind this call.
+        const short = Math.min(-d.a.cash, pos.qty * payout + fee);
+        const sell = Math.min(shares.qty, pos.qty, short / underlying);
         d.a.cash += sell * underlying;
         const str = reducePosition(d, shares, sell, underlying, (underlying - shares.entry) * sell, 0, t, {});
         const sale = { id: 'settlement', instrument: shares.instrument, mode: 'spot' as const, side: 'sell' as const };
