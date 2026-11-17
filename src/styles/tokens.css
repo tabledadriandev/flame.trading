@@ -1,0 +1,90 @@
+/*
+  Flame design tokens. See docs/design-system.md for the reasoning.
+
+  Two rules hold everywhere:
+  1. Chrome is ash. Surfaces, text, borders and controls are neutral.
+  2. Hue is data. --hot and --cold mean buying and selling pressure
+     (up/down, bid/ask, long/short) and are never used as decoration.
+*/
+
+:root {
+  color-scheme: light dark;
+
+  /* Ash: the light theme */
+  --bg: #e9e9e7;
+  --surface: #f8f8f6;
+  --raised: #ffffff;
+  --line: #d6d6d2;
+  --line-strong: #bdbdb8;
+  --ink: #1b1a19;
+  --ink-2: #55534f;
+  --ink-3: #85827c;
+  --hot: #c2570a;
+  --cold: #1f6fd1;
+  --hot-wash: rgb(194 87 10 / 0.12);
+  --cold-wash: rgb(31 111 209 / 0.12);
+
+  /* Type: one family, three widths. Width encodes density. */
+  --font: 'Archivo Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --w-dense: 80%;
+  --w-ui: 100%;
+  --w-display: 118%;
+
+  --t-11: 0.6875rem;
+  --t-12: 0.75rem;
+  --t-13: 0.8125rem;
+  --t-15: 0.9375rem;
+  --t-18: 1.125rem;
+  --t-24: 1.5rem;
+  --t-32: 2rem;
+  --t-44: 2.75rem;
+
+  /* Space: a 4px step */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+
+  /* Shape: panes are square and divided by lines; only controls are rounded */
+  --r-control: 6px;
+  --r-pill: 999px;
+
+  --rail: 64px;
+  --bar: 48px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    /* Char: the dark theme */
+    --bg: #131210;
+    --surface: #1c1a18;
+    --raised: #262320;
+    --line: #312d29;
+    --line-strong: #47423c;
+    --ink: #ece7e0;
+    --ink-2: #aaa298;
+    --ink-3: #736c63;
+    --hot: #dd7418;
+    --cold: #3d8ce3;
+    --hot-wash: rgb(221 116 24 / 0.16);
+    --cold-wash: rgb(61 140 227 / 0.16);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #131210;
+  --surface: #1c1a18;
+  --raised: #262320;
+  --line: #312d29;
+  --line-strong: #47423c;
+  --ink: #ece7e0;
+  --ink-2: #aaa298;
+  --ink-3: #736c63;
+  --hot: #dd7418;
+  --cold: #3d8ce3;
+  --hot-wash: rgb(221 116 24 / 0.16);
+  --cold-wash: rgb(61 140 227 / 0.16);
+}
