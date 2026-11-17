@@ -78,8 +78,8 @@ export function Tape() {
       {!hasTape ? (
         <PaneState title={`No tape for ${i.symbol}`}>Trade-by-trade data is not available for this instrument.</PaneState>
       ) : rows.length === 0 ? (
-        <PaneState title={all.current.length ? 'No trades this large yet' : 'Waiting for trades'}>
-          {all.current.length ? 'Lower the size filter to see smaller prints.' : `${i.symbol} prints appear here as they happen.`}
+        <PaneState title={min > 0 ? 'No trades this large yet' : 'Waiting for trades'}>
+          {min > 0 ? 'Lower the size filter to see smaller prints.' : `${i.symbol} prints appear here as they happen.`}
         </PaneState>
       ) : (
         <div className="pane-body">

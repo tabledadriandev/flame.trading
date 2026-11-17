@@ -5,7 +5,7 @@ import { instrument } from '../data/instruments';
 import { heatStep, imbalanceRead, tickChoices, type LadderRow, type Wall } from '../data/ladder';
 import { VENUE_NAMES } from '../data/venues';
 import { compact, pct, price } from '../lib/format';
-import { useSize } from '../lib/hooks';
+import { useMedia, useSize } from '../lib/hooks';
 import { useQuoteSlow } from '../state/hooks';
 import { useMarket } from '../state/market';
 import { useTicket } from '../state/ticket';
@@ -14,6 +14,7 @@ import { FeedBadge } from '../ui/FeedBadge';
 import { useLadder, type VenueState } from './useLadder';
 
 const ROW = 20;
+const ROW_PHONE = 24;
 
 function Row({
   row,
@@ -66,11 +67,7 @@ function Row({
           <span className="ladder-price">{price(row.price, decimals)}</span>
           <span className="ladder-bar" aria-hidden="true">
             <i data-step={step} style={{ width: `${width}%` }} />
-            {isWall && wall ? (
-              <em>
-                Wall, {pct(wall.distancePct, false)} away
-              </em>
-            ) : null}
+            {isWall ? <em>Wall</em> : null}
           </span>
           <span className="ladder-size">{compact(row.size)}</span>
         </button>
@@ -118,7 +115,8 @@ export function Book({ rangePct = 0.01 }: { rangePct?: number }) {
   const hasBook = r?.adapter.hasBook ?? false;
   const decimals = Math.max(0, Math.ceil(-Math.log10(tick)));
   const l = feed.ladder;
-  const perSide = Math.max(3, Math.floor((size.height - 26) / 2 / ROW) - (open ? 1 : 0));
+  const phone = useMedia('(max-width: 860px)');
+  const perSide = Math.max(3, Math.floor((size.height - 26) / 2 / (phone ? ROW_PHONE : ROW)) - (open ? 1 : 0));
   const asks = l ? l.asks.slice(0, perSide) : [];
   const bids = l ? l.bids.slice(0, perSide) : [];
   let max = 0;
@@ -182,14 +180,6 @@ export function Book({ rangePct = 0.01 }: { rangePct?: number }) {
       ) : (
         <>
           <div className="book-top num">
-            <div className="book-stats">
-              <span>
-                <i>Mid</i> {price(l.mid, Math.max(decimals, 2))}
-              </span>
-              <span>
-                <i>Spread</i> {price(l.spread, Math.max(decimals, 2))}
-              </span>
-            </div>
             <div
               className="imbalance"
               role="img"
@@ -206,6 +196,20 @@ export function Book({ rangePct = 0.01 }: { rangePct?: number }) {
                   intent, not a forecast.
                 </Help>
               </span>
+            </div>
+            <div className="walls">
+              {l.askWall ? (
+                <span>
+                  <i>Supply wall</i> {compact(l.askWall.size)} at {price(l.askWall.price, decimals)}, {pct(l.askWall.distancePct, false)} up
+                  {multi ? `, mostly ${VENUE_NAMES[l.askWall.venue]?.name ?? l.askWall.venue}` : ''}
+                </span>
+              ) : null}
+              {l.bidWall ? (
+                <span>
+                  <i>Demand wall</i> {compact(l.bidWall.size)} at {price(l.bidWall.price, decimals)}, {pct(l.bidWall.distancePct, false)} down
+                  {multi ? `, mostly ${VENUE_NAMES[l.bidWall.venue]?.name ?? l.bidWall.venue}` : ''}
+                </span>
+              ) : null}
             </div>
           </div>
           <div className="ladder" ref={wrap}>
@@ -231,9 +235,7 @@ export function Book({ rangePct = 0.01 }: { rangePct?: number }) {
             <div className="ladder-mid num">
               <span>{price(l.mid, Math.max(decimals, 2))}</span>
               <small>
-                {l.askWall ? `Supply wall ${compact(l.askWall.size)} at ${price(l.askWall.price, decimals)}` : ''}
-                {l.askWall && l.bidWall ? ' / ' : ''}
-                {l.bidWall ? `demand wall ${compact(l.bidWall.size)} at ${price(l.bidWall.price, decimals)}` : ''}
+                Spread {price(l.spread, Math.max(decimals, 2))}
               </small>
             </div>
             <div className="ladder-side ladder-bids">

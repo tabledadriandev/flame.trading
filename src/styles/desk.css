@@ -18,8 +18,21 @@
 .pane-chart {
   grid-area: chart;
 }
-.pane-book {
+.book-col {
   grid-area: book;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--line);
+}
+
+.book-col > .pane-book {
+  flex: var(--ladder, 0.62) 1 0;
+}
+
+.book-col > .pane-tape {
+  flex: calc(1 - var(--ladder, 0.62)) 1 0;
 }
 .pane-ticket {
   grid-area: ticket;
@@ -36,6 +49,98 @@
 
 .desk[data-max='chart'] > :not(.pane-chart) {
   display: none;
+}
+
+/* ---------- Dividers: every pane edge drags ---------- */
+
+.desk {
+  position: relative;
+}
+
+.divider {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+}
+
+.divider::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  background: transparent;
+}
+
+.divider-x {
+  top: 0;
+  bottom: calc(var(--h-drawer, 220px) + 1px);
+  width: 9px;
+  cursor: col-resize;
+}
+
+.divider-x::after {
+  width: 1px;
+  height: 100%;
+}
+
+.divider-y {
+  left: 0;
+  right: 0;
+  height: 9px;
+  cursor: row-resize;
+}
+
+.divider-y::after {
+  width: 100%;
+  height: 1px;
+}
+
+.divider:hover::after,
+.divider:focus-visible::after,
+.divider:active::after {
+  background: var(--ink);
+}
+
+.divider:focus-visible {
+  outline: none;
+}
+
+.div-watch {
+  left: calc(var(--w-watch, 240px) - 4px);
+}
+
+.div-book {
+  right: calc(var(--w-book, 272px) + var(--w-ticket, 300px) - 3px);
+}
+
+.div-ticket {
+  right: calc(var(--w-ticket, 300px) - 4px);
+}
+
+.div-drawer {
+  bottom: calc(var(--h-drawer, 220px) - 4px);
+}
+
+.divider-inline {
+  position: relative;
+  flex: none;
+  height: 1px;
+  background: var(--line);
+}
+
+.divider-inline::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 9px;
+}
+
+.divider-inline:hover,
+.divider-inline:focus-visible,
+.divider-inline:active {
+  background: var(--ink);
 }
 
 .pane-select {
@@ -125,7 +230,42 @@
   text-align: right;
 }
 
+.watch-item {
+  position: relative;
+}
+
+.watch-x {
+  position: absolute;
+  top: 5px;
+  right: 2px;
+  display: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.watch-item:hover .watch-x,
+.watch-x:focus-visible {
+  display: grid;
+}
+
+.watch-x:hover {
+  color: var(--ink);
+}
+
+.watch-menu {
+  top: calc(100% + 6px);
+  right: 0;
+}
+
 .watch-row {
+  width: 100%;
   height: 28px;
   border: 0;
   background: transparent;
@@ -227,10 +367,14 @@
 .chart-host {
   position: absolute;
   inset: 0;
+  /* The charting library stacks its own canvases with z-index; keep that inside this box so the order lines sit on top. */
+  isolation: isolate;
+  z-index: 0;
 }
 
 .chart-lines {
   position: absolute;
+  z-index: 1;
   top: 0;
   left: 0;
   overflow: hidden;
@@ -439,34 +583,334 @@
   text-align: right;
 }
 
-/* ---------- Small screens: the desk becomes a stack ---------- */
+/* ---------- Book: the heat ladder ---------- */
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--t-12);
+}
+
+.stepper .num {
+  min-width: 30px;
+  text-align: center;
+}
+
+.book-top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px var(--s-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-12);
+}
+
+.walls {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--t-11);
+  line-height: 15px;
+}
+
+.walls span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.walls i,
+.ladder-mid small {
+  color: var(--ink-2);
+  font-style: normal;
+}
+
+.imbalance {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* A single split bar: the bid share from the left, the ask share from the right, a gap between. */
+.imbalance-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+}
+
+.imbalance-bar i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+}
+
+.imbalance-bid {
+  background: var(--hot);
+  border-radius: 3px 0 0 3px;
+}
+
+.imbalance-ask {
+  background: var(--cold);
+  border-radius: 0 3px 3px 0;
+}
+
+.imbalance-read {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-stretch: var(--w-ui);
+}
+
+.ladder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ladder-side {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Asks stack up from the mid, so the nearest ask sits just above it. */
+.ladder-asks {
+  justify-content: flex-end;
+}
+
+.ladder-row {
+  display: flex;
+  flex: none;
+  height: 20px;
+}
+
+.ladder-open {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.ladder-open:hover {
+  color: var(--ink);
+}
+
+.ladder-pick {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 var(--s-2) 0 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--t-12);
+  text-align: right;
+  cursor: pointer;
+}
+
+.ladder-pick:hover {
+  background: var(--raised);
+}
+
+.ladder-pick:focus-visible,
+.ladder-open:focus-visible {
+  outline-offset: -2px;
+}
+
+.ladder-price {
+  text-align: left;
+}
+
+.ladder-row[data-side='bid'] .ladder-price {
+  color: var(--hot-text);
+}
+
+.ladder-row[data-side='ask'] .ladder-price {
+  color: var(--cold-text);
+}
+
+.ladder-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 14px;
+  min-width: 0;
+}
+
+/* Size, three ways: the bar's length, its shade, and the number beside it. */
+.ladder-bar i {
+  display: block;
+  flex: none;
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+}
+
+.ladder-row[data-side='bid'] .ladder-bar i[data-step='1'] { background: var(--hot-1); }
+.ladder-row[data-side='bid'] .ladder-bar i[data-step='2'] { background: var(--hot-2); }
+.ladder-row[data-side='bid'] .ladder-bar i[data-step='3'] { background: var(--hot-3); }
+.ladder-row[data-side='bid'] .ladder-bar i[data-step='4'] { background: var(--hot-4); }
+.ladder-row[data-side='bid'] .ladder-bar i[data-step='5'] { background: var(--hot-5); }
+.ladder-row[data-side='ask'] .ladder-bar i[data-step='1'] { background: var(--cold-1); }
+.ladder-row[data-side='ask'] .ladder-bar i[data-step='2'] { background: var(--cold-2); }
+.ladder-row[data-side='ask'] .ladder-bar i[data-step='3'] { background: var(--cold-3); }
+.ladder-row[data-side='ask'] .ladder-bar i[data-step='4'] { background: var(--cold-4); }
+.ladder-row[data-side='ask'] .ladder-bar i[data-step='5'] { background: var(--cold-5); }
+
+.ladder-bar em {
+  position: absolute;
+  right: 0;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--surface);
+  font-size: var(--t-11);
+  font-style: normal;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.ladder-row[data-wall='true'] .ladder-size {
+  font-weight: 700;
+}
+
+.ladder-venues {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0 var(--s-3);
+  min-height: 20px;
+  padding: 2px var(--s-2) 2px 18px;
+  background: var(--bg);
+  font-size: var(--t-11);
+  line-height: 16px;
+}
+
+.ladder-venues b {
+  font-weight: 600;
+}
+
+.ladder-mid {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  height: 26px;
+  padding: 4px var(--s-2) 0 18px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  font-weight: 600;
+}
+
+.ladder-mid small {
+  font-size: var(--t-11);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Tape ---------- */
+
+.tape td {
+  height: 20px;
+  font-size: var(--t-12);
+}
+
+/* Large trades get a heavier weight, not a new colour. */
+.tape tr[data-large='true'] td {
+  font-weight: 700;
+}
+
+/* ---------- Phone: the desk becomes a swipeable stack ---------- */
+
+.phone-desk {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.phone-tabs {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.phone-tab {
+  flex: 1 0 auto;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--t-13);
+  cursor: pointer;
+}
+
+.phone-tab[aria-selected='true'] {
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.phone-pages {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.phone-pages::-webkit-scrollbar {
+  display: none;
+}
+
+.phone-page {
+  flex: 0 0 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  background: var(--line);
+  gap: 1px;
+}
+
+.phone-page > .pane {
+  flex: 1 1 0;
+}
+
+.phone-page-book > .pane-book {
+  flex: 3 1 0;
+}
+
+.phone-page-book > .pane-tape {
+  flex: 2 1 0;
+}
 
 @media (max-width: 860px) {
-  .desk {
-    display: flex;
-    flex-direction: column;
-    height: auto;
-    min-height: 100%;
-  }
-
-  .desk > .pane {
-    flex: none;
-  }
-
-  .pane-chart {
-    height: 56vh;
-    min-height: 320px;
-  }
-
-  .pane-watch .pane-body,
-  .pane-drawer .pane-body {
-    max-height: 46vh;
-  }
-
-  .pane-drawer .pane-body {
-    overflow-x: auto;
-  }
-
   .pane-chart .pane-head {
     height: auto;
     min-height: var(--pane-head);
@@ -480,7 +924,248 @@
     display: none;
   }
 
-  .desk[data-max='chart'] .pane-chart {
-    height: 100%;
+  .pane-chart .pane-tools {
+    flex-wrap: wrap;
+    width: 100%;
+    margin-left: 0;
   }
+
+  .ind-pop {
+    right: auto;
+    left: 0;
+    width: min(320px, calc(100vw - 24px));
+  }
+
+  .pane-drawer .pane-body {
+    overflow-x: auto;
+  }
+
+  /* Comfortable touch targets. */
+  .ticket .seg-item {
+    height: 32px;
+  }
+
+  .ticket .field-box {
+    height: 38px;
+  }
+
+  .ticket-go {
+    height: 48px;
+  }
+
+  .watch-row {
+    height: 40px;
+  }
+
+  .ladder-row {
+    height: 24px;
+  }
+}
+
+/* ---------- Chart menus, indicators, volume profile ---------- */
+
+.menu-anchor {
+  position: relative;
+}
+
+.ind-pop {
+  top: calc(100% + 6px);
+  right: 0;
+  width: 320px;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+}
+
+.ind-active {
+  padding: var(--s-1) var(--s-2) var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.ind-active-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ind-note {
+  margin: 0 0 var(--s-1);
+  color: var(--ink-2);
+  font-size: var(--t-12);
+}
+
+.ind-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.ind-params label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: var(--t-12);
+}
+
+.ind-params input {
+  width: 58px;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.ind-volume {
+  padding: var(--s-1) var(--s-2);
+}
+
+.ind-add {
+  align-items: flex-start;
+}
+
+.ind-add svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+.ind-add span {
+  display: flex;
+  flex-direction: column;
+}
+
+.ind-add em {
+  color: var(--ink-2);
+  font-size: var(--t-12);
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.ind-add:disabled {
+  cursor: not-allowed;
+}
+
+.ind-add:disabled strong {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.chart-menu {
+  position: fixed;
+  min-width: 180px;
+}
+
+.vprofile {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 132px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  font-size: var(--t-11);
+  pointer-events: none;
+}
+
+.vprofile-head {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+  color: var(--ink-2);
+}
+
+.vprofile-head strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.vprofile-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.vprofile-row {
+  display: flex;
+  height: 3px;
+  opacity: 0.45;
+}
+
+.vprofile-row[data-value='true'] {
+  opacity: 1;
+}
+
+.vprofile-row[data-poc='true'] {
+  height: 5px;
+  outline: 1px solid var(--ink);
+}
+
+.vp-buy {
+  background: var(--hot);
+}
+
+.vp-sell {
+  background: var(--cold);
+}
+
+/* ---------- The ten-second review ---------- */
+
+.to-review {
+  display: flex;
+  flex-direction: column;
+}
+
+.review-card {
+  border-bottom: 1px solid var(--line);
+}
+
+.review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+  width: 100%;
+  min-height: 30px;
+  padding: 5px var(--s-3);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.review-head:hover,
+.review-card[data-open='true'] .review-head {
+  background: var(--bg);
+}
+
+.review-head .sub {
+  color: var(--ink-2);
+  font-size: var(--t-12);
+}
+
+.sub {
+  color: var(--ink-2);
+}
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3) var(--s-3);
+}
+
+.review-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.review-row > .field {
+  flex: 1 1 150px;
+}
+
+.review-foot {
+  display: flex;
+  justify-content: flex-end;
 }

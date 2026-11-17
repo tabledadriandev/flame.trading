@@ -6,6 +6,7 @@ import {
   HistogramSeries,
   LineSeries,
   LineStyle,
+  TickMarkType,
   createChart,
   createSeriesMarkers,
   type IChartApi,
@@ -80,11 +81,36 @@ export interface ChartProps {
   onAxisClick?: (price: number, alt: boolean) => void;
   onContext?: (t: number, x: number, y: number) => void;
   onNeedOlder?: () => void;
+  /** A plain click on a bar (used to pick an anchor). */
+  onBarClick?: (t: number) => void;
   label: string;
 }
 
-/** lightweight-charts draws UTC; shift by the local offset so the axis reads in local time. */
-const toChartTime = (ms: number): UTCTimestamp => Math.floor((ms - new Date(ms).getTimezoneOffset() * 60_000) / 1000) as UTCTimestamp;
+// Bar times go to the chart as plain UTC seconds, and the axis labels are
+// formatted in local time. (Shifting the timestamps by the local offset, the
+// usual trick, gives two bars the same time on the night the clocks go back.)
+const toChartTime = (ms: number): UTCTimestamp => Math.floor(ms / 1000) as UTCTimestamp;
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const two = (n: number): string => String(n).padStart(2, '0');
+
+/**
+ * Axis and crosshair labels. Intraday bars read in local time. Daily and
+ * weekly bars open at midnight UTC and are named by their UTC date, so a
+ * daily candle is never labelled with the day before.
+ */
+export function timeLabel(sec: number, kind: 'year' | 'month' | 'day' | 'time' | 'full', intraday: boolean): string {
+  const d = new Date(sec * 1000);
+  const Y = intraday ? d.getFullYear() : d.getUTCFullYear();
+  const M = intraday ? d.getMonth() : d.getUTCMonth();
+  const D = intraday ? d.getDate() : d.getUTCDate();
+  if (kind === 'year') return String(Y);
+  if (kind === 'month') return MONTHS[M]!;
+  if (kind === 'day') return String(D);
+  const hm = `${two(d.getHours())}:${two(d.getMinutes())}`;
+  if (kind === 'time') return hm;
+  return intraday ? `${D} ${MONTHS[M]} ${hm}` : `${D} ${MONTHS[M]} ${Y}`;
+}
 
 function heikin(candles: Candle[]): Candle[] {
   const out: Candle[] = [];
@@ -97,6 +123,15 @@ function heikin(candles: Candle[]): Candle[] {
     prev = ha;
   }
   return out;
+}
+
+/**
+ * Pane heights: price takes most of the room, volume a strip, each oscillator
+ * a band. Set every time panes are created, because a pane the library
+ * recycles keeps the height of whatever lived there before.
+ */
+function sizePanes(chart: IChartApi, volume: boolean): void {
+  chart.panes().forEach((pane, n) => pane.setStretchFactor(n === 0 ? 1 : volume && n === 1 ? 0.16 : 0.26));
 }
 
 const DASH = { solid: LineStyle.Solid, dashed: LineStyle.Dashed, dotted: LineStyle.Dotted } as const;
@@ -143,7 +178,22 @@ export function Chart(props: ChartProps) {
         horzLine: { color: colors.ink2, labelBackgroundColor: colors.ink, width: 1, style: LineStyle.Dashed },
       },
       rightPriceScale: { borderColor: colors.line },
-      timeScale: { borderColor: colors.line, timeVisible: true, secondsVisible: false, rightOffset: 6, minBarSpacing: 1.5 },
+      localization: { timeFormatter: (t: Time) => (typeof t === 'number' ? timeLabel(t, 'full', cb.current.intraday ?? true) : String(t)) },
+      timeScale: {
+        borderColor: colors.line,
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 6,
+        minBarSpacing: 1.5,
+        tickMarkFormatter: (t: Time, type: TickMarkType) => {
+          if (typeof t !== 'number') return null;
+          const intra = cb.current.intraday ?? true;
+          if (type === TickMarkType.Year) return timeLabel(t, 'year', intra);
+          if (type === TickMarkType.Month) return timeLabel(t, 'month', intra);
+          if (type === TickMarkType.DayOfMonth) return timeLabel(t, 'day', intra);
+          return timeLabel(t, 'time', intra);
+        },
+      },
     });
     const state: Live = { chart, main: null, mainType: null, vol: null, extra: new Map(), panesKey: '', markers: null, colors, drawn: null, byTime: new Map() };
     live.current = state;
@@ -157,6 +207,10 @@ export function Chart(props: ChartProps) {
         const px = y !== undefined && inPrice && state.main ? state.main.coordinateToPrice(y) : null;
         cb.current.onHoverPrice(px ?? null);
       }
+    });
+    chart.subscribeClick((p) => {
+      const t = typeof p.time === 'number' ? state.byTime.get(p.time) : undefined;
+      if (t) cb.current.onBarClick?.(t.t);
     });
     chart.timeScale().subscribeVisibleLogicalRangeChange((r) => {
       if (r && r.from < 5) cb.current.onNeedOlder?.();
@@ -233,12 +287,13 @@ export function Chart(props: ChartProps) {
     }
     if (volume && !s.vol) {
       s.vol = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false }, 1);
-      chart.panes()[1]?.setStretchFactor(0.18);
       s.drawn = null;
     } else if (!volume && s.vol) {
       chart.removeSeries(s.vol);
       s.vol = null;
     }
+
+    sizePanes(chart, volume);
 
     const first = data[0];
     const last = data[data.length - 1];
@@ -319,7 +374,6 @@ export function Chart(props: ChartProps) {
                 paneIndex(spec.pane),
               );
         s.extra.set(spec.id, api);
-        if (spec.pane !== 'price') chart.panes()[paneIndex(spec.pane)]?.setStretchFactor(0.24);
       }
       if (spec.kind === 'histogram') {
         api.applyOptions({ color, title: spec.label ?? '' });
@@ -335,6 +389,7 @@ export function Chart(props: ChartProps) {
         api.setData(spec.points.map((p) => ({ time: toChartTime(p.t), value: p.v })) as never);
       }
     }
+    sizePanes(chart, volume);
   }, [series, volume, redraw]);
 
   // ----- Fill markers -----
@@ -447,25 +502,29 @@ export function Chart(props: ChartProps) {
     const s = live.current;
     if (!s || !s.main) return;
     e.preventDefault();
-    const target = e.currentTarget;
-    target.setPointerCapture(e.pointerId);
+    e.stopPropagation();
     const top = host.current!.getBoundingClientRect().top;
+    const id = e.pointerId;
     drag.current = { id: line.id, price: line.price };
+    // Listen on the window, so the drag keeps tracking when the pointer leaves the small tag.
     const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== id) return;
       const px = s.main?.coordinateToPrice(ev.clientY - top);
       if (px !== null && px !== undefined && px > 0 && drag.current) drag.current.price = px;
     };
     const end = (ev: PointerEvent) => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', end);
-      target.removeEventListener('pointercancel', end);
+      if (ev.pointerId !== id) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      if (ev.type === 'pointerup') move(ev);
       const d = drag.current;
       drag.current = null;
-      if (ev.type === 'pointerup' && d && Math.abs(d.price - line.price) > 0) line.onMove?.(d.price);
+      if (ev.type === 'pointerup' && d && d.price !== line.price) line.onMove?.(d.price);
     };
-    target.addEventListener('pointermove', move);
-    target.addEventListener('pointerup', end);
-    target.addEventListener('pointercancel', end);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
   };
 
   return (

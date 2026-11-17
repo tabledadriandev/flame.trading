@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ToReview } from './Review';
 import { instrument } from '../data/instruments';
 import { bracketsFor, workingOrders } from '../engine/engine';
 import { effectiveLeverage, positionLiquidationPrice, rulesFor, unrealised } from '../engine/rules';
@@ -296,18 +297,27 @@ export function drawerTabs(positions: number, orders: number, toReview: number):
   ];
 }
 
-export function Drawer() {
+export function Drawer({ book = 'live', quote }: { book?: Book; quote?: (id: string) => ReturnType<typeof quoteFor> }) {
   const [tab, setTab] = useState<DrawerTab>('positions');
-  const account = useAccount((s) => s.live);
+  const account = useAccount((s) => s[book]);
   const positions = Object.keys(account.positions).length;
   const orders = workingOrders(account).length;
+  const waiting = account.trades.filter((t) => t.closedAt !== undefined && !t.review).length;
+  const seen = useRef(waiting);
+
+  // A trade is not finished when it closes; it is finished when it is journaled. Bring the form up.
+  useEffect(() => {
+    if (waiting > seen.current) setTab('journal');
+    seen.current = waiting;
+  }, [waiting]);
+
   return (
-    <section className="pane pane-drawer" aria-label="Positions, orders and fills">
+    <section className="pane pane-drawer" aria-label="Positions, orders, fills and journal">
       <header className="pane-head">
-        <Tabs label="Account" tabs={drawerTabs(positions, orders, 0).filter((t) => t.id !== 'journal')} value={tab} onChange={setTab} />
+        <Tabs label="Account" tabs={drawerTabs(positions, orders, waiting)} value={tab} onChange={setTab} />
       </header>
       <div className="pane-body" role="tabpanel">
-        <DrawerBody tab={tab} />
+        <DrawerBody tab={tab} book={book} {...(quote ? { quote } : {})} journal={<ToReview book={book} />} />
       </div>
     </section>
   );

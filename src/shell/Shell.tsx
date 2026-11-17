@@ -22,6 +22,10 @@ import { useValuation } from '../state/hooks';
 import { useAccount } from '../state/account';
 import { Toasts } from '../ui/Toasts';
 import { Help } from '../ui/controls';
+import { usePalette } from '../state/palette';
+import { useLayout } from '../state/layout';
+import { Palette } from './Palette';
+import { useGlobalKeys } from './keys';
 
 function AccountBadge() {
   const v = useValuation('live');
@@ -57,6 +61,9 @@ export const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
 export function Shell({ view, children }: { view: ViewId; children: ReactNode }) {
   const [theme, setTheme] = useState(() => resolvedTheme(readTheme()));
 
+  const zen = useLayout((s) => s.zen) && view === 'desk';
+  useGlobalKeys();
+
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     writeTheme(next);
@@ -64,7 +71,7 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
   }
 
   return (
-    <div className="shell">
+    <div className="shell" data-zen={zen ? 'true' : undefined}>
       <nav className="rail" aria-label="Views">
         <div className="rail-mark">
           <Mark />
@@ -81,11 +88,11 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
 
       <header className="bar">
         <span className="wordmark">Flame</span>
-        <div className="bar-search" aria-disabled="true" title="Search arrives with the command palette">
+        <button type="button" className="bar-search" onClick={() => usePalette.getState().show()} aria-keyshortcuts="Meta+K Control+K /">
           <Search size={14} aria-hidden="true" />
           Search a stock, index or coin
-          <kbd>⌘K</kbd>
-        </div>
+          <kbd>{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+        </button>
         {SIM ? (
           <span className="status" data-level="warn" title="Every price on screen is made up. Remove ?sim=1 from the address to see real markets.">
             Simulated feed
@@ -103,6 +110,7 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
       </header>
 
       <main className="view">{children}</main>
+      <Palette />
       <Toasts />
     </div>
   );

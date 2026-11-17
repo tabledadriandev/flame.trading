@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Ellipsis, Plus, X } from 'lucide-react';
+import { usePalette } from '../state/palette';
 import { route } from '../data/feed';
 import { instrument } from '../data/instruments';
 import { useFlash, useNow } from '../lib/hooks';
@@ -68,7 +70,69 @@ export function Spark({ points, up, width = 44, height = 18 }: { points: number[
   );
 }
 
-function Row({ id, selected, now }: { id: string; selected: boolean; now: number }) {
+function ListMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { lists, active, createList, renameList, deleteList } = useWatchlists();
+  const current = lists.find((l) => l.id === active);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+  return (
+    <div className="menu-anchor" ref={ref}>
+      <button type="button" className="btn btn-quiet btn-icon btn-sm" aria-expanded={open} aria-haspopup="menu" aria-label="Watchlist options" onClick={() => setOpen(!open)}>
+        <Ellipsis size={14} aria-hidden="true" />
+      </button>
+      {open ? (
+        <div className="pop watch-menu" role="menu">
+          <button
+            type="button"
+            className="pop-item"
+            role="menuitem"
+            onClick={() => {
+              const name = window.prompt('Name the new list');
+              if (name) createList(name);
+              setOpen(false);
+            }}
+          >
+            New list
+          </button>
+          <button
+            type="button"
+            className="pop-item"
+            role="menuitem"
+            onClick={() => {
+              const name = window.prompt('Rename this list', current?.name ?? '');
+              if (name) renameList(active, name);
+              setOpen(false);
+            }}
+          >
+            Rename “{current?.name}”
+          </button>
+          <button
+            type="button"
+            className="pop-item"
+            role="menuitem"
+            disabled={lists.length < 2}
+            onClick={() => {
+              if (window.confirm(`Delete the list “${current?.name}”? The symbols in it are not affected anywhere else.`)) deleteList(active);
+              setOpen(false);
+            }}
+          >
+            Delete this list
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Row({ id, index, selected, now }: { id: string; index: number; selected: boolean; now: number }) {
   const q = useMarket((s) => s.quotes[id]);
   const select = useMarket((s) => s.select);
   const flash = useFlash(q?.last);
@@ -78,13 +142,40 @@ function Row({ id, selected, now }: { id: string; selected: boolean; now: number
   const up = (q?.changePct ?? 0) >= 0;
   const stale = q !== undefined && isStale(q, now);
   return (
+    <div
+      className="watch-item"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/flame-watch', String(index));
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('text/flame-watch')) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        const from = Number(e.dataTransfer.getData('text/flame-watch'));
+        if (Number.isInteger(from) && from !== index) useWatchlists.getState().move(from, index);
+      }}
+    >
     <button
       type="button"
       className="watch-row"
       aria-current={selected ? 'true' : undefined}
       data-stale={stale ? 'true' : undefined}
       onClick={() => select(id)}
-      title={stale ? `${i.name}. This price is old: nothing has arrived for a while.` : i.name}
+      onKeyDown={(e) => {
+        // Alt with the arrows reorders; Delete removes.
+        if (e.altKey && e.key === 'ArrowUp') {
+          e.preventDefault();
+          useWatchlists.getState().move(index, index - 1);
+        } else if (e.altKey && e.key === 'ArrowDown') {
+          e.preventDefault();
+          useWatchlists.getState().move(index, index + 1);
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          useWatchlists.getState().remove(id);
+        }
+      }}
+      title={stale ? `${i.name}. This price is old: nothing has arrived for a while.` : `${i.name}. Drag to reorder (or Alt with the arrow keys); Delete removes it.`}
     >
       <span className="watch-sym">{i.symbol}</span>
       <Spark points={spark} up={up} />
@@ -93,6 +184,10 @@ function Row({ id, selected, now }: { id: string; selected: boolean; now: number
       </span>
       <span className={`watch-chg num ${known && !stale ? (up ? 'hot' : 'cold') : ''}`}>{stale ? 'Old' : q ? pct(q.changePct) : '—'}</span>
     </button>
+      <button type="button" className="watch-x" onClick={() => useWatchlists.getState().remove(id)} aria-label={`Remove ${i.symbol} from this list`} title="Remove">
+        <X size={12} aria-hidden="true" />
+      </button>
+    </div>
   );
 }
 
@@ -121,7 +216,15 @@ export function Watchlist() {
           'Watchlist'
         )
       }
-      tools={first ? <FeedBadge instrumentId={first} /> : null}
+      tools={
+        <>
+          {first ? <FeedBadge instrumentId={first} /> : null}
+          <button type="button" className="btn btn-quiet btn-icon btn-sm" onClick={() => usePalette.getState().show('', 'watch')} aria-label="Add a symbol to this list" title="Add a symbol">
+            <Plus size={14} aria-hidden="true" />
+          </button>
+          <ListMenu />
+        </>
+      }
     >
       <div className="pane-body">
         {items.length === 0 ? (
@@ -134,8 +237,8 @@ export function Watchlist() {
               <span>Last</span>
               <span>Change</span>
             </div>
-            {items.map((id) => (
-              <Row key={id} id={id} selected={id === selected} now={now} />
+            {items.map((id, n) => (
+              <Row key={id} id={id} index={n} selected={id === selected} now={now} />
             ))}
           </div>
         )}

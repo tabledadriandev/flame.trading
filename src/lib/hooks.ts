@@ -38,12 +38,11 @@ export function useFlash(value: number | undefined): 'up' | 'down' | null {
   return flash;
 }
 
-/** The element's size, kept current with a ResizeObserver. */
-export function useSize<T extends HTMLElement>(): [React.RefObject<T | null>, { width: number; height: number }] {
-  const ref = useRef<T>(null);
+/** The element's size, kept current with a ResizeObserver. The ref may attach late or move to another element. */
+export function useSize<T extends HTMLElement>(): [(el: T | null) => void, { width: number; height: number }] {
+  const [el, setEl] = useState<T | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
       const r = entries[0]?.contentRect;
@@ -51,6 +50,6 @@ export function useSize<T extends HTMLElement>(): [React.RefObject<T | null>, { 
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
-  return [ref, size];
+  }, [el]);
+  return [setEl, size];
 }

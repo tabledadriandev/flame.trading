@@ -10,6 +10,8 @@ import { useSettings, type Settings } from './settings';
 import { toast } from './toasts';
 import { useWatchlists, type Watchlist } from './watchlists';
 import { useLayout, type LayoutDoc } from './layout';
+import { useIndicators } from './indicators';
+import { useLevels, type Level } from './levels';
 
 const LOCK = SIM ? 'flame-account-sim' : 'flame-account';
 const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(LOCK);
@@ -72,6 +74,8 @@ export async function boot(): Promise<void> {
     load<{ lists?: Watchlist[]; active?: string }>('watchlists'),
     load<LayoutDoc>('layout'),
   ]);
+  const levels = await load<Record<string, Level[]>>('levels');
+  if (levels.ok) useLevels.getState().hydrate(levels.data);
 
   if (settings.ok) useSettings.getState().hydrate(settings.data);
   else useSettings.getState().hydrate(undefined);
@@ -79,6 +83,7 @@ export async function boot(): Promise<void> {
   if (layout.ok) {
     useMarket.getState().hydrate(layout.data);
     useLayout.getState().hydrate(layout.data);
+    useIndicators.getState().hydrate(layout.data as { indicators?: unknown; volume?: unknown; chartType?: unknown } | undefined);
   }
 
   if (account.ok) {
@@ -90,7 +95,7 @@ export async function boot(): Promise<void> {
     useAccount.setState({ ready: true, loadError: account.error });
   }
 
-  const lost = [!settings.ok && 'settings', !watch.ok && 'watchlists', !layout.ok && 'layout'].filter(Boolean);
+  const lost = [!settings.ok && 'settings', !watch.ok && 'watchlists', !layout.ok && 'layout', !levels.ok && 'chart levels'].filter(Boolean);
   if (lost.length) toast(`Could not read your stored ${lost.join(', ')}. Defaults are in use.`, { sticky: true });
   if (!persistent) toast('This browser is not letting Flame store data. Your account will last only until this tab closes.', { sticky: true });
 

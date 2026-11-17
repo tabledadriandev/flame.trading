@@ -204,6 +204,106 @@ button {
   overflow: auto;
 }
 
+/* Zen: nothing but the chart. Z or Esc brings the desk back. */
+.shell[data-zen='true'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.shell[data-zen='true'] > .rail,
+.shell[data-zen='true'] > .bar {
+  display: none;
+}
+
+/* ---------- Command palette ---------- */
+
+.palette {
+  width: min(620px, 100%);
+}
+
+.palette-input {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+}
+
+.palette-input input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--t-15);
+}
+
+.palette-list {
+  max-height: 56vh;
+  padding: var(--s-1);
+  overflow-y: auto;
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding-right: var(--s-2);
+  border-radius: 4px;
+}
+
+.palette-row[data-active='true'] {
+  background: var(--bg);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+.palette-main {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px var(--s-2);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.palette-main strong {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.palette-main span {
+  color: var(--ink-2);
+  font-size: var(--t-12);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-main small {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.palette-empty,
+.palette-foot {
+  padding: var(--s-3) var(--s-3);
+  color: var(--ink-2);
+}
+
+.palette-foot {
+  border-top: 1px solid var(--line);
+  font-size: var(--t-12);
+}
+
 /* ---------- Unbuilt views ---------- */
 
 .plan {
