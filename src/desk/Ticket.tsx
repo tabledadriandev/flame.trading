@@ -15,6 +15,8 @@ import { Dialog, Help, NumField, Pane, PaneState, Segmented } from '../ui/contro
 import { FeedBadge } from '../ui/FeedBadge';
 import { maxQty, previewTicket } from './ticketMath';
 import { ConePanel } from './Cone';
+import { coinOf } from '../data/deribit';
+import { openChain } from '../state/optionsView';
 
 const trim = (n: number, d = 8): string => String(parseFloat(n.toFixed(d)));
 
@@ -228,6 +230,11 @@ export function Ticket({ book = 'live', instrumentId, getQuote, pulse, badge }: 
               { value: 'lev', label: levName, title: `Long or short with up to ${rules.maxLeverage}× leverage, on isolated margin.` },
             ]}
           />
+          {coinOf(id) && book === 'live' ? (
+            <button type="button" className="btn btn-sm ticket-options" onClick={() => openChain(id)} title={`Calls and puts on ${i.symbol}: open the option chain`}>
+              Options
+            </button>
+          ) : null}
           <Segmented<OrderType>
             label="Order type"
             value={t.type}
@@ -239,6 +246,7 @@ export function Ticket({ book = 'live', instrumentId, getQuote, pulse, badge }: 
             ]}
           />
         </div>
+        {coinOf(id) && book !== 'live' ? <p className="ticket-hint">Options are not offered in Replay: there is no record of past option chains to fill against.</p> : null}
 
         {t.type !== 'market' ? (
           <NumField

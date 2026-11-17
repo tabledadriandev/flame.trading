@@ -11,6 +11,7 @@ import {
   reviewTrade,
   setBrackets,
   settle,
+  settleOption,
   snapshotTrade,
   applyFunding,
 } from '../engine/engine';
@@ -24,6 +25,7 @@ import {
   type Review,
 } from '../engine/types';
 import { dollars, money, qty, rr } from '../lib/format';
+import { parseOptionId } from '../options/contract';
 import { lastPrice } from './clock';
 import { save } from './persist';
 import { engineSettings, useSettings } from './settings';
@@ -50,6 +52,8 @@ interface AccountStore {
   onBar(instrumentId: string, bar: { t: number; o: number; h: number; l: number; c: number }, book?: Book, away?: boolean, asOf?: number): EngineEvent[];
   funding(instrumentId: string, rate: number, mark: number): void;
   settle(instrumentId: string, payout: number): void;
+  /** Settle an expired option against the underlying's price at expiry. */
+  settleOption(instrumentId: string, underlying: number, t: number): EngineEvent[];
   review(tradeId: string, review: Review, book?: Book): void;
   snapshot(tradeId: string, closes: number[], book?: Book): void;
   reset(book?: Book): void;
@@ -154,6 +158,9 @@ export const useAccount = create<AccountStore>((set, get) => {
     settle(id, payout) {
       commit('live', settle(get().live, id, payout, engineSettings(), Date.now()));
     },
+    settleOption(id, underlying, t) {
+      return commit('live', settleOption(get().live, id, underlying, engineSettings(), t), true);
+    },
     review(tradeId, review, book = 'live') {
       const next = reviewTrade(get()[book], tradeId, review);
       set({ [book]: next } as Pick<AccountStore, Book>);
@@ -190,7 +197,10 @@ function describe(e: EngineEvent & { type: 'fill' }): string {
   const verb = e.fill.side === 'buy' ? 'Bought' : 'Sold';
   // A prediction-market share is priced in cents; everything else in dollars.
   const at = i.cls === 'odds' ? `${(e.fill.price * 100).toFixed(1)}¢` : dollars(e.fill.price);
-  const what = `${qty(e.fill.qty, e.fill.price)} ${i.symbol} at ${at}`;
+  // An option is counted in contracts, not in the shares or coins it covers.
+  const spec = i.cls === 'option' ? parseOptionId(i.id) : null;
+  const size = spec ? `${Math.round((e.fill.qty / spec.multiplier) * 1000) / 1000} ×` : qty(e.fill.qty, e.fill.price);
+  const what = `${size} ${i.symbol} at ${at}`;
   return e.fill.away ? `Filled while away: ${verb.toLowerCase()} ${what}` : `${verb} ${what}`;
 }
 

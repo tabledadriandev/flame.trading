@@ -1,0 +1,450 @@
+/* The Options view: a chain, a ticket and a payoff. Chrome is ash; hue only
+   marks buying and selling (the bid and ask you act on, profit and loss). */
+
+.options {
+  min-height: 100%;
+  background: var(--surface);
+  container-type: inline-size;
+}
+
+.opt-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.opt-index strong {
+  font-weight: 600;
+}
+
+.opt-asof {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.opt-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  border-bottom: 1px solid var(--line);
+}
+
+.opt-chain {
+  min-width: 0;
+  border-right: 1px solid var(--line);
+}
+
+.opt-chain > .tabs {
+  height: 36px;
+  padding: 0 var(--s-3);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.opt-chain > .tabs .tab {
+  flex: none;
+  white-space: nowrap;
+}
+
+.opt-chain > .seg {
+  margin: var(--s-2) var(--s-3);
+}
+
+.opt-scroll {
+  overflow-x: auto;
+}
+
+.opt-stale {
+  margin: 0;
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  font-weight: 600;
+}
+
+/* ---------- The chain ---------- */
+
+.chain th,
+.chain td {
+  padding: 0 6px;
+}
+
+.chain .chain-side {
+  height: 28px;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: center;
+}
+
+.chain .chain-side .sub {
+  font-weight: 400;
+}
+
+.chain .chain-strike {
+  width: 1%;
+  padding: 0 var(--s-3);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.chain tbody .chain-strike {
+  position: static;
+  height: var(--row);
+  font-size: inherit;
+}
+
+/* In the money: worth something if it expired now. A neutral tint: moneyness is not buying or selling pressure. */
+.chain td[data-itm='true'] {
+  background: var(--raised);
+}
+
+.chain tr[data-atm='true'] > * {
+  border-top: 1px solid var(--ink-3);
+}
+
+.chain tr[data-atm='true'][data-first='true'] > * {
+  border-top: 0;
+}
+
+.chain-atm {
+  display: block;
+  margin-top: -2px;
+  color: var(--ink-2);
+  font-size: var(--t-11);
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.chain tr[data-atm='true'] .chain-strike {
+  height: calc(var(--row) + 12px);
+}
+
+.chain-quote {
+  min-width: 52px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  cursor: pointer;
+}
+
+/* The ask is what a buyer pays and the bid what a seller gets: the same hues as the book. */
+.chain-ask .chain-quote {
+  color: var(--hot-text);
+}
+
+.chain-bid .chain-quote {
+  color: var(--cold-text);
+}
+
+.chain-quote:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+
+.chain-quote[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.chain .chain-mid,
+.chain .chain-iv,
+.chain .chain-delta,
+.chain .chain-oi,
+.chain .chain-vol {
+  color: var(--ink-2);
+}
+
+.chain td.chain-mid,
+.chain td.chain-iv,
+.chain td.chain-delta {
+  color: var(--ink);
+}
+
+/* Narrower than the full fifteen columns: drop the least needed first. */
+@container (max-width: 1240px) {
+  .chain .chain-vol {
+    display: none;
+  }
+}
+
+@container (max-width: 1140px) {
+  .chain .chain-oi {
+    display: none;
+  }
+}
+
+@container (max-width: 1040px) {
+  .chain .chain-mid {
+    display: none;
+  }
+}
+
+.opt-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.opt-columns {
+  padding: 0 var(--s-4) var(--s-2);
+}
+
+.opt-columns summary,
+.payoff-table summary {
+  padding: var(--s-1) 0;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.opt-columns dl {
+  display: grid;
+  gap: var(--s-1);
+  max-width: 78ch;
+  margin: var(--s-1) 0 var(--s-2);
+}
+
+.opt-columns dl > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--s-2);
+}
+
+.opt-columns dt {
+  font-weight: 600;
+}
+
+.opt-columns dd {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.opt-credit {
+  max-width: 78ch;
+  margin: 0;
+  padding: 0 var(--s-4) var(--s-3);
+}
+
+/* ---------- The ticket ---------- */
+
+.opt-side {
+  min-width: 0;
+  scroll-margin-top: var(--s-2);
+}
+
+.opt-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4) var(--s-4);
+}
+
+.opt-ticket-head p {
+  margin: 2px 0 0;
+}
+
+.opt-contract {
+  margin: 0;
+  font-size: var(--t-15);
+  font-weight: 600;
+}
+
+.opt-quote {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.opt-quote dt {
+  color: var(--ink-2);
+  font-size: var(--t-12);
+}
+
+.opt-quote dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.opt-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3) var(--s-2);
+}
+
+.opt-fields > :nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.opt-ticket .ticket-preview p {
+  margin: 0;
+}
+
+.opt-ticket .ticket-preview p + p {
+  margin-top: 4px;
+}
+
+.opt-ticket .ticket-go {
+  width: 100%;
+}
+
+.opt-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--t-12);
+  line-height: 1.45;
+}
+
+.opt-sub {
+  margin: var(--s-2) 0 0;
+  font-size: inherit;
+  font-weight: 600;
+}
+
+/* ---------- Payoff ---------- */
+
+.payoff-plot {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--bg);
+  touch-action: pan-y;
+}
+
+.payoff-plot svg {
+  display: block;
+}
+
+.payoff-tick {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.payoff-tick-strong {
+  fill: var(--ink);
+  font-weight: 600;
+}
+
+.payoff-read {
+  margin: var(--s-2) 0 0;
+  line-height: 1.4;
+}
+
+.payoff-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-3);
+  margin-top: var(--s-1);
+  color: var(--ink-2);
+  font-size: var(--t-12);
+}
+
+.payoff-key {
+  display: inline-block;
+  width: 18px;
+  margin-right: 4px;
+  border-top: 2px solid var(--ink);
+  vertical-align: middle;
+}
+
+.payoff-key-dash {
+  border-top: 2px dashed var(--ink-2);
+}
+
+.payoff-slider {
+  display: block;
+  margin-top: var(--s-2);
+}
+
+.payoff-slider input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  accent-color: var(--ink);
+}
+
+.payoff-table {
+  margin-top: var(--s-1);
+}
+
+/* ---------- Positions and their greeks ---------- */
+
+.opt-positions-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+  padding: var(--s-3) var(--s-4) var(--s-2);
+}
+
+.opt-positions tfoot th,
+.opt-positions tfoot td {
+  position: static;
+  height: var(--row);
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 0;
+  color: var(--ink);
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.opt-meaning {
+  display: grid;
+  gap: 4px;
+  max-width: 82ch;
+  margin: 0;
+  padding: var(--s-2) var(--s-4) var(--s-4) calc(var(--s-4) + 16px);
+  color: var(--ink-2);
+}
+
+.opt-wait {
+  margin: 0;
+  padding: var(--s-2) var(--s-4) var(--s-4);
+}
+
+/* The desk ticket's way in. */
+.ticket-options {
+  height: 26px;
+}
+
+@container (max-width: 900px) {
+  .opt-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .opt-chain {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .chain-quote {
+    min-width: 64px;
+    height: 32px;
+  }
+
+  .chain td {
+    height: 40px;
+  }
+}

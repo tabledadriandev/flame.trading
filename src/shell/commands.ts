@@ -24,8 +24,8 @@ export interface Command {
   run: () => void;
 }
 
-export const VIEW_KEYS: Record<ViewId, string> = { desk: 'D', markets: 'M', flow: 'F', odds: 'O', replay: 'R', lab: 'L', journal: 'J', news: 'N' };
-const VIEW_NAMES: Record<ViewId, string> = { desk: 'Desk', markets: 'Markets', flow: 'Flow', odds: 'Odds', replay: 'Replay', lab: 'Lab', journal: 'Journal', news: 'News' };
+export const VIEW_KEYS: Record<ViewId, string> = { desk: 'D', markets: 'M', flow: 'F', odds: 'O', options: 'P', replay: 'R', lab: 'L', journal: 'J', news: 'N' };
+const VIEW_NAMES: Record<ViewId, string> = { desk: 'Desk', markets: 'Markets', flow: 'Flow', odds: 'Odds', options: 'Options', replay: 'Replay', lab: 'Lab', journal: 'Journal', news: 'News' };
 
 export function goView(v: ViewId): void {
   window.location.hash = v;

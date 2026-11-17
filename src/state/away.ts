@@ -52,6 +52,9 @@ export async function catchUp(since: number): Promise<void> {
   let fills = 0;
   const failed: string[] = [];
   for (const id of exposed) {
+    // Options have no candles to replay. What matters for them is expiry, which is settled separately
+    // (state/options.ts) at the venue's own settlement price, however long Flame was closed.
+    if (instrument(id).cls === 'option') continue;
     const r = route(id);
     if (!r) {
       failed.push(instrument(id).symbol);

@@ -1,4 +1,4 @@
-import type { AssetClass, Dir, EngineSettings, Levels, Position, Quote, Side } from './types';
+import type { AssetClass, Dir, EngineSettings, Levels, OptionSpec, Position, Quote, Side } from './types';
 
 // The numbers a venue would publish in its rulebook. See "Paper-trading rules"
 // in docs/product-spec.md; every rule here has a test in engine.test.ts.
@@ -19,7 +19,35 @@ export interface ClassRules {
 export function rulesFor(cls: AssetClass, s: EngineSettings): ClassRules {
   if (cls === 'crypto') return { taker: s.fees.cryptoTaker, maker: s.fees.cryptoMaker, mmr: 0.005, maxLeverage: 20 };
   if (cls === 'stock') return { taker: s.fees.stock, maker: s.fees.stock, mmr: 0.25, maxLeverage: 2 };
+  // Options charge per contract or as a share of the underlying, not of the premium: see optionFee.
+  if (cls === 'option') return { taker: 0, maker: 0, mmr: 0, maxLeverage: 1 };
   return { taker: s.fees.odds, maker: s.fees.odds, mmr: 0, maxLeverage: 1 };
+}
+
+/** The smallest size an option trades in, in contracts. */
+export const optionLot = (spec: OptionSpec): number => (spec.venue === 'deribit' ? 0.1 : 1);
+
+/** What an option pays per unit of the underlying if it expired with the underlying at this price. */
+export function optionPayout(spec: OptionSpec, underlying: number): number {
+  return Math.max(0, spec.kind === 'call' ? underlying - spec.strike : spec.strike - underlying);
+}
+
+/**
+ * The fee on an option trade of `qty` units at `price` per unit. Stock
+ * options pay per contract. Crypto options pay a share of the underlying's
+ * value, never more than a set share of the premium; when the underlying's
+ * price is not known, the cap is charged.
+ */
+export function optionFee(s: EngineSettings, spec: OptionSpec, qty: number, price: number, underlying: number | undefined): number {
+  if (spec.venue !== 'deribit') return s.fees.optionContract * (qty / spec.multiplier);
+  const cap = s.fees.optionCryptoCap * price * qty;
+  return underlying !== undefined && underlying > 0 ? Math.min(s.fees.optionCryptoRate * underlying * qty, cap) : cap;
+}
+
+/** The fee when an option is settled at expiry. Only crypto options that are not daily expiries pay one. */
+export function deliveryFee(s: EngineSettings, spec: OptionSpec, qty: number, payout: number, underlying: number): number {
+  if (spec.venue !== 'deribit' || spec.daily) return 0;
+  return Math.min(s.fees.optionCryptoDelivery * underlying * qty, s.fees.optionCryptoCap * payout * qty);
 }
 
 /** Long: entry × (1 − 1/leverage + mmr). Short: entry × (1 + 1/leverage − mmr). */

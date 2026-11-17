@@ -1,9 +1,10 @@
 import type { AssetClass } from '../engine/types';
+import { optionName, optionSymbol, parseOptionId } from '../options/contract';
 
 // An instrument has one id (crypto:BTC, stock:SPY, poly:<market-id>). Panes
 // take the id and never care where the data comes from.
 
-export type InstrumentKind = 'crypto' | 'stock' | 'etf' | 'index' | 'rate' | 'commodity' | 'fx' | 'odds';
+export type InstrumentKind = 'crypto' | 'stock' | 'etf' | 'index' | 'rate' | 'commodity' | 'fx' | 'odds' | 'option' | 'token';
 
 export interface Instrument {
   id: string;
@@ -124,6 +125,11 @@ export function instrument(id: string): Instrument {
   const [venue, rest = ''] = id.split(/:(.*)/s);
   if (venue === 'crypto') return C(rest, rest);
   if (venue === 'poly') return { id, symbol: 'Market', name: 'Prediction market', kind: 'odds', cls: 'odds', tradable: true };
+  if (venue === 'opt') {
+    // An option's id is the whole contract, so its name can always be read back from it.
+    const spec = parseOptionId(id);
+    return { id, symbol: spec ? optionSymbol(spec) : rest, name: spec ? optionName(spec) : 'Option', kind: 'option', cls: 'option', tradable: spec !== null };
+  }
   const kind: InstrumentKind = rest.startsWith('^') ? 'index' : rest.endsWith('=F') ? 'commodity' : rest.endsWith('=X') ? 'fx' : 'stock';
   return Y(rest, rest.replace(/^\^/, ''), rest, kind);
 }

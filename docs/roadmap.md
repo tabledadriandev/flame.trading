@@ -83,9 +83,9 @@ Also in this phase, from the review of the data and state layers:
 Adrian asked for options, memecoins, stocks and "everything", and for a better favicon. The full brief, with engine rules, data sources and acceptance checks 10 to 17, is `docs/brief-02-every-market.md`. Read it before starting any item here. Work in the order the brief gives: favicon, crypto options, memecoins, stocks and the rest once the key exists, stock options, then Phase 6 over everything.
 
 - [x] Favicon and app icon: five candidates on one preview sheet (`design/favicon-sheet.html`); Adrian picked C, the flame with a candlestick cut out of it, on 17 November 2026. Shipped to `public/icon.svg`, the 192, 512, maskable 512 and apple-touch PNGs, and `src/shell/Mark.tsx`. `node scripts/make-icons.mjs` redraws every size
-- [ ] `src/options/bs.ts`: Black-Scholes price, greeks and implied-volatility solver, unit-tested
-- [ ] Engine: option positions (long, covered call, cash-secured put, defined-risk spreads), cash settlement at expiry through the catch-up path, fees. A test for every rule in the brief
-- [ ] Crypto options from Deribit: verify the public API and CORS, adapter, chain view, ticket, payoff chart, position greeks
+- [x] `src/options/bs.ts`: Black-Scholes price, greeks and implied-volatility solver, tested against Hull's textbook values and against Deribit's own greeks for a live contract
+- [x] Engine: option positions (long, covered call, cash-secured put, defined-risk spreads), cash settlement at expiry, fees. A test for every rule in the brief (`src/engine/options.test.ts`). The stock-option fee default waits for stock options
+- [x] Crypto options from Deribit: public API and CORS verified, adapter, chain view, ticket, payoff chart, position greeks (`#options`)
 - [ ] Engine: pool fills on the constant-product curve, the 2% of liquidity cap, marking at what the pool would pay, the "rugged" tag
 - [ ] Memecoins: verify DexScreener, GeckoTerminal and a risk source; Launchpad view; token on the desk with the Pool pane
 - [ ] Stocks and ETFs live through Alpaca behind the existing `/api/quote` shape. **Needs `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` in Vercel, which Adrian adds himself.** The upstream is written (`api/_lib/alpaca.ts`) but unverified; still to do once the key exists: one real call, the "IEX" and "Delayed 15 min" labels, in-flight request coalescing, and serving the cached value marked stale when the budget is spent

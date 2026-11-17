@@ -1,7 +1,8 @@
 // Plain data for the paper-trading engine. No classes, no React, nothing that
 // cannot be written to IndexedDB and read back unchanged.
 
-export type AssetClass = 'crypto' | 'stock' | 'odds';
+/** 'meme' is an on-chain token that trades against a liquidity pool. */
+export type AssetClass = 'crypto' | 'stock' | 'odds' | 'option' | 'meme';
 /** 'lev' is a perp for crypto and a margin position for stocks. */
 export type Mode = 'spot' | 'lev';
 export type Side = 'buy' | 'sell';
@@ -13,7 +14,39 @@ export interface Fees {
   cryptoMaker: number;
   stock: number;
   odds: number;
+  /** Stock options: dollars per contract. */
+  optionContract: number;
+  /** Crypto options (Deribit's schedule): a share of the underlying's value... */
+  optionCryptoRate: number;
+  /** ...never more than this share of the premium. */
+  optionCryptoCap: number;
+  /** Crypto options: the fee at expiry, as a share of the underlying. Daily options are exempt. */
+  optionCryptoDelivery: number;
 }
+
+/** One option contract. Everything about it follows from its id, so it is never stored apart from the id. */
+export interface OptionSpec {
+  /** The instrument the option is on: crypto:BTC, stock:AAPL. */
+  underlying: string;
+  kind: 'call' | 'put';
+  strike: number;
+  /** Expiry, milliseconds. */
+  expiry: number;
+  /** Units of the underlying one contract covers: 100 shares for a stock option, 1 coin on Deribit. */
+  multiplier: number;
+  venue: 'deribit' | 'alpaca';
+  /** A Deribit daily expiry: no fee at settlement. */
+  daily?: boolean;
+}
+
+/** What stands behind an option that was sold. Flame never allows an uncovered one. */
+export type Cover =
+  /** A covered call: the shares or coins themselves, which cannot be sold while they cover it. */
+  | { kind: 'shares'; key: string }
+  /** A cash-secured put: the strike price for every unit, set aside as the position's margin. */
+  | { kind: 'cash' }
+  /** The short leg of a spread: a bought option caps the loss; the gap between the strikes is set aside. */
+  | { kind: 'spread'; key: string };
 
 export interface EngineSettings {
   fees: Fees;
@@ -22,7 +55,10 @@ export interface EngineSettings {
 }
 
 export const DEFAULT_SETTINGS: EngineSettings = {
-  fees: { cryptoTaker: 0.0005, cryptoMaker: 0.0002, stock: 0, odds: 0 },
+  // Option fees: Deribit's standard tier is 3 basis points of the underlying, capped at 12.5% of the premium,
+  // and 1.5 basis points at expiry (its fee page, read 17 November 2026). The stock-option fee is set when
+  // stock options are built, from the venue's fee page.
+  fees: { cryptoTaker: 0.0005, cryptoMaker: 0.0002, stock: 0, odds: 0, optionContract: 0, optionCryptoRate: 0.0003, optionCryptoCap: 0.125, optionCryptoDelivery: 0.00015 },
   fillAtLastClose: false,
 };
 
@@ -38,6 +74,14 @@ export interface Quote {
   book?: { bids: Levels; asks: Levels };
   /** False while a stock's exchange is closed. Undefined means always open. */
   open?: boolean;
+  /** For an option: the price of what it is on, in dollars. Crypto option fees are a share of it. */
+  underlying?: number;
+  /** For an on-chain token: the pool every order fills against. */
+  pool?: import('./pool').Pool;
+  /** For an on-chain token: why holders cannot sell, when the risk source says they can be stopped. */
+  sellBlocked?: string;
+  /** For an on-chain token: the share of every sale the token's contract keeps. */
+  sellTax?: number;
 }
 
 export interface OrderInput {
@@ -54,6 +98,8 @@ export interface OrderInput {
   tp?: number;
   sl?: number;
   reduceOnly?: boolean;
+  /** Required when `cls` is 'option', unless the order closes a position that already carries it. */
+  option?: OptionSpec;
 }
 
 export type OrderStatus = 'working' | 'filled' | 'cancelled' | 'rejected';
@@ -96,8 +142,11 @@ export interface Position {
   dir: Dir;
   qty: number;
   entry: number;
-  /** Isolated margin held out of cash. Zero for spot. */
+  /** Isolated margin held out of cash. Zero for spot. For an option that was sold: the cash set aside. */
   margin: number;
+  /** Present on option positions. A bought option is held 'spot'; a sold one is held 'lev' with its cover. */
+  option?: OptionSpec;
+  cover?: Cover;
   tradeId: string;
   openedAt: number;
 }

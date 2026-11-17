@@ -19,6 +19,8 @@ const KIND: Record<Instrument['kind'], string> = {
   commodity: 'Commodity',
   fx: 'Currency',
   odds: 'Prediction market',
+  option: 'Option',
+  token: 'Token',
 };
 
 interface Row {

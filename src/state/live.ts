@@ -121,9 +121,9 @@ export function quoteFor(id: string): Quote | undefined {
     }
   }
   // A venue with its own two-sided price (a prediction market) fills against that.
+  // The last price is not a price anyone would trade at there, so there is no falling back to it.
   const r = route(id);
-  const own = r?.adapter.quote?.(r.symbol);
-  if (own) return own;
+  if (r?.adapter.quote) return r.adapter.quote(r.symbol);
   if (!info || isStale(info, now)) return undefined;
   return { bid: info.last, ask: info.last, last: info.last, t: now, ...(info.open !== undefined ? { open: info.open } : {}) };
 }
@@ -199,9 +199,12 @@ function reconcile(): void {
       id,
       r.adapter.subscribeTicker(r.symbol, (t) => {
         pushQuote(id, { last: t.last, changePct: t.changePct, t: Date.now(), kind: r.adapter.kind, ...(t.open !== undefined ? { open: t.open } : {}) });
-        // Instruments off the desk have no book here: the engine fills them at the last price.
+        // Instruments off the desk have no book here: the engine fills them at the last price, unless the
+        // venue has its own two-sided price (an option, a prediction market), which is what orders fill against.
+        // Such a venue is never filled at its last price: if it has no fresh two-sided price, nothing is evaluated.
         if (id !== deskFor || !r.adapter.hasBook) {
-          engineQuote(id, { bid: t.last, ask: t.last, last: t.last, t: Date.now(), ...(t.open !== undefined ? { open: t.open } : {}) });
+          const q = r.adapter.quote ? r.adapter.quote(r.symbol) : { bid: t.last, ask: t.last, last: t.last, t: Date.now(), ...(t.open !== undefined ? { open: t.open } : {}) };
+          if (q) engineQuote(id, q);
         }
       }),
     );

@@ -10,11 +10,21 @@ const str = (v: unknown): v is string => typeof v === 'string' && v.length < 2_0
 const optNum = (v: unknown): boolean => v === undefined || num(v);
 
 const MODES = ['spot', 'lev'];
-const CLASSES = ['crypto', 'stock', 'odds'];
+const CLASSES = ['crypto', 'stock', 'odds', 'option', 'meme'];
 const SIDES = ['buy', 'sell'];
 const DIRS = ['long', 'short'];
 
+function optionSpec(o: unknown): boolean {
+  return isObj(o) && str(o.underlying) && ['call', 'put'].includes(o.kind as string) && num(o.strike) && o.strike > 0 && num(o.expiry) && num(o.multiplier) && o.multiplier > 0 && ['deribit', 'alpaca'].includes(o.venue as string);
+}
+
+function cover(c: unknown): boolean {
+  return isObj(c) && (c.kind === 'cash' || ((c.kind === 'shares' || c.kind === 'spread') && str(c.key)));
+}
+
 function position(p: unknown): boolean {
+  // An option position must say which contract it is, and one that was sold must say what covers it.
+  if (isObj(p) && p.cls === 'option' && !(optionSpec(p.option) && (p.mode === 'spot' || cover(p.cover)))) return false;
   return isObj(p) && str(p.key) && str(p.instrument) && CLASSES.includes(p.cls as string) && MODES.includes(p.mode as string) && DIRS.includes(p.dir as string) && num(p.qty) && p.qty > 0 && num(p.entry) && p.entry >= 0 && num(p.margin) && p.margin >= 0 && str(p.tradeId) && num(p.openedAt);
 }
 
@@ -65,7 +75,9 @@ function watchlistsProblem(d: unknown): string | null {
 
 function settingsProblem(d: unknown): string | null {
   if (!isObj(d)) return 'The settings are not valid.';
-  if (d.fees !== undefined && !(isObj(d.fees) && Object.values(d.fees).every((v) => num(v) && v >= 0 && v <= 0.05))) return 'The fees in the settings are not valid.';
+  // Most fees are rates; a stock option's is dollars a contract, and the crypto-option cap is a share of the premium.
+  const feeLimit = (k: string): number => (k === 'optionContract' ? 10 : k === 'optionCryptoCap' ? 1 : 0.05);
+  if (d.fees !== undefined && !(isObj(d.fees) && Object.entries(d.fees).every(([k, v]) => num(v) && v >= 0 && v <= feeLimit(k)))) return 'The fees in the settings are not valid.';
   if (d.riskPct !== undefined && !(num(d.riskPct) && d.riskPct > 0 && d.riskPct <= 100)) return 'The default risk in the settings is not valid.';
   if (d.setups !== undefined && !(Array.isArray(d.setups) && d.setups.length <= 200 && d.setups.every(str))) return 'The setup tags in the settings are not valid.';
   return null;

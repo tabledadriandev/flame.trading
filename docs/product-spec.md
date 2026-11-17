@@ -20,8 +20,9 @@ What it must feel like: one desk you can live in. Fast, quiet, keyboard-friendly
 | Stocks and ETFs | AAPL, NVDA, SPY, QQQ | Server proxy to Alpaca, 15 minutes delayed | Spot; Margin (long/short, 1–2×) |
 | Indices, rates, commodities | S&P 500, VIX, long Treasuries, gold, crude | Not in the stock feed. Shown and traded through the ETF that tracks each (SPY, VIXY, TLT, GLD, USO) | As stocks |
 | Prediction markets | Polymarket events | Server proxy | Buy and sell Yes/No shares priced 0–100¢ |
+| Crypto options | BTC and ETH calls and puts | Deribit, direct from the browser | Buy; sell only when covered (see the rules) |
 
-An instrument has one id (`crypto:BTC`, `stock:SPY`, `poly:<token-id>`), a display symbol, a name, a class, a price precision and a tradable flag. Panes take an instrument id and never care where the data comes from.
+An instrument has one id (`crypto:BTC`, `stock:SPY`, `poly:<token-id>`, `opt:deribit:BTC-25JUN27-88000-C`), a display symbol, a name, a class, a price precision and a tradable flag. Panes take an instrument id and never care where the data comes from.
 
 Delayed data is labelled "Delayed" next to the price, always.
 
@@ -96,8 +97,17 @@ A full-screen version of the order-flow tools:
 ### Odds
 Prediction markets by topic, each as a card: question, leading outcomes with probabilities, change this week, volume, time left. A market page shows the probability history and a simple ticket (buy Yes or No in dollars; shares = dollars ÷ price). Positions settle at $1 or $0 when the market resolves, or can be sold at the current bid.
 
+### Options
+Reached from the desk ticket ("Options" beside Spot and Perp, on BTC and ETH), from the palette, or with `G` then `P`. Not in the rail.
+
+- **Chain.** Expiries as tabs. One row per strike, calls on the left and puts on the right, prices next to the strike: bid, ask, mid, implied volatility, delta, open interest, volume. The strike nearest the forward is marked "At the money"; in-the-money cells carry a neutral tint. Strikes near the money are shown first, with a button for the rest. Narrow windows drop volume, then open interest, then mid; a phone shows calls or puts, one at a time. "What the columns mean" explains each column in one line. Clicking an ask loads a buy, a bid a sale.
+- **Ticket.** One contract at a time. Size in contracts, a limit at the mid by default, or a market order. The preview states the premium and fees, the most you can lose, the most you can make, the breakeven and the chance of finishing in profit (the method is in its help). A sale that the account cannot cover is refused there, with the reason. Deribit options say that they are quoted in the coin and converted at the index price.
+- **Payoff.** Profit and loss against the underlying's price: a line for expiry, a dashed line for a date chosen with a slider between today and expiry, breakevens marked on the axis. Readable by pointer and by arrow keys, with the same numbers as a table.
+- **Positions.** Every option position with its delta, gamma, theta and vega, a total for the account, and what each total means in a sentence.
+- With the simulated feed (`?sim=1`) the view says options are not shown: there is no simulated chain.
+
 ### Replay
-Pick an instrument, a timeframe and a start date. The chart hides everything after that moment. Step one bar (`→`), play at 1×–20×, pause (`space`). Orders work as on the desk, against a separate **practice account** so replay results never mix with the live paper account. Inside a bar, price is assumed to travel open → low → high → close for an up bar and open → high → low → close for a down bar, so stops and targets trigger in a defensible order. Ending the session shows what you did against what happened next. The book and tape panes say "Not available in replay".
+Options are not offered in Replay, because nobody publishes the old chains to fill against; the Replay ticket says so. Pick an instrument, a timeframe and a start date. The chart hides everything after that moment. Step one bar (`→`), play at 1×–20×, pause (`space`). Orders work as on the desk, against a separate **practice account** so replay results never mix with the live paper account. Inside a bar, price is assumed to travel open → low → high → close for an up bar and open → high → low → close for a down bar, so stops and targets trigger in a defensible order. Ending the session shows what you did against what happened next. The book and tape panes say "Not available in replay".
 
 ### Lab
 Backtest a rule on history.
@@ -124,7 +134,7 @@ These are the engine's contract. Each line needs a test.
 
 **Account**
 - Starts with $100,000 cash. Reset is available in settings and asks for confirmation, because it deletes history.
-- Equity = cash + market value of spot holdings + margin held + unrealised P&L on leveraged positions.
+- Equity = cash + market value of spot holdings + margin held + unrealised P&L on leveraged positions. An option that was sold counts as what it would cost to buy back, against the premium already in cash.
 - All accounting in USD. USDT pairs are treated as USD.
 
 **Spot**
@@ -146,8 +156,20 @@ These are the engine's contract. Each line needs a test.
 - Take-profit and stop-loss attached to a position are reduce-only and cancel each other.
 - Stock orders outside market hours rest until the open, unless the user chooses "fill at last close" in settings.
 
+**Options** (`src/engine/options.test.ts` has a test for each line)
+- A stock option contract covers 100 shares. A Deribit option covers 1 coin, trades in steps of 0.1 contracts, and is quoted in the coin; Flame converts to dollars at the index price.
+- Buying costs the premium, and the premium (with the fee) is the most the position can lose.
+- Selling opens a position only when it is covered: a call against shares or coins already held (a covered call), a put against cash equal to the strike for every unit, set aside (a cash-secured put), or either against a bought option of the same kind on the same underlying that expires no sooner (a spread; what the pair can lose at expiry is set aside). Of the covers available, the one that sets aside the least cash is used. There are no uncovered short options, and the refusal says why.
+- What covers a sold option cannot be sold while it does.
+- Buys fill at the ask and sells at the bid. A limit rests until the other side reaches it. No stops, take-profits or stop-losses on options. Positions are marked at the mid.
+- Nothing liquidates a sold option: it is fully covered.
+- At expiry every option settles in cash at what it is worth: `max(0, underlying − strike)` for a call, `max(0, strike − underlying)` for a put, times the size. A covered call that finishes in the money is paid in cash; if the cash is short, enough of the covering shares are sold at the settlement price. Real stock options settle in shares and can be assigned early; Flame does neither, and says so.
+- Expiry is checked at start and once a minute, and settles at the venue's own settlement price for that expiry (Deribit's delivery price), so an option that expired while Flame was closed settles at the price of that moment.
+- Not offered in Replay.
+
 **Fees**
 - Crypto: 0.05% taker, 0.02% maker. Stocks: none. Prediction markets: none. Configurable in settings.
+- Crypto options (Deribit's standard tier): 0.03% of the underlying per contract, never more than 12.5% of the premium; 0.015% at expiry with the same cap, and nothing on daily expiries. Stock options: a fee per contract, set when stock options are built.
 
 **Trades and R**
 - A trade is the life of a position from first fill to flat. It records every fill, total fees, duration, MAE and MFE.

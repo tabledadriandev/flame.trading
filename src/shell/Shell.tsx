@@ -63,6 +63,10 @@ export const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
   { id: 'news', label: 'News', icon: Newspaper },
 ];
 
+/** Views that are reached from another view, not from the rail, still need a name. */
+const OFF_RAIL: Partial<Record<ViewId, string>> = { options: 'Options' };
+const viewLabel = (view: ViewId): string => NAV.find((n) => n.id === view)?.label ?? OFF_RAIL[view] ?? 'Desk';
+
 export function Shell({ view, children }: { view: ViewId; children: ReactNode }) {
   const [theme, setTheme] = useState(() => resolvedTheme(readTheme()));
 
@@ -70,7 +74,7 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
   const [settings, setSettings] = useState(false);
   const online = useMarket((s) => s.online);
   useEffect(() => {
-    document.title = `Flame: ${NAV.find((n) => n.id === view)?.label ?? 'Desk'}`;
+    document.title = `Flame: ${viewLabel(view)}`;
   }, [view]);
   useGlobalKeys();
 
@@ -129,7 +133,7 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
       </header>
 
       <main className="view">
-        <h1 className="sr-only">{NAV.find((n) => n.id === view)?.label}</h1>
+        <h1 className="sr-only">{viewLabel(view)}</h1>
         {children}
       </main>
       <Palette />

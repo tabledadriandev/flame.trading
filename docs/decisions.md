@@ -116,3 +116,25 @@ The proxies accept only the parameters each endpoint defines, because any extra 
 
 Stops and targets are still checked at each day's close (the cone is built from daily returns), so an intraday touch that recovers is still missed. What changed after the review: a path that is past its stop or target at a close is booked at that close, not at the stop or target price. Booking at the level pretended a fill the data could not support, and a day that gaps through a stop now costs more than the stop, as it would.
 
+## Options in the engine (17 November 2026)
+
+**Options go through the same order path as everything else.** A bought option is a spot position (pay the premium, own the thing). A sold one is a 'lev' position whose margin is the cash set aside, with a `cover` saying what stands behind it. That reuses resting limits, fills, trades, the journal and the drawer unchanged; the engine decides from the account whether "buy" or "sell" opens or closes, so the ticket never has to.
+
+**The premium of a sold option goes into cash at once**, as it does at a broker, and the position is valued as a liability (what it would cost to buy back). The alternative, treating it like a short perp with no cash movement, gives the same equity but hides the thing a learner should see: cash up, collateral set aside.
+
+**Cover is chosen by least cash set aside.** Shares for a call (nothing set aside), a spread before the full strike for a put. A position keeps one kind of cover; adding to it against a different kind is refused.
+
+**A covered call that finishes in the money and cannot be paid from cash sells just enough of the shares at the settlement price.** The brief rules out delivery in shares, and letting cash go negative would break every later order. This keeps cash at zero or above and equity exactly right.
+
+**No stops or brackets on options.** An option's price moves with time and volatility as well as the underlying, so a price stop on the option is a poor tool, and a stop on the underlying would need a second feed evaluated against the first. Left out, said in the ticket's refusal.
+
+**When nobody is offering, the ask is infinite; when nobody is bidding, the bid is zero.** So a buy can never fill against an empty side, and a market order there is refused with "Nobody is offering this option right now".
+
+**Greeks are computed, not copied.** Deribit sends greeks only on the per-contract ticker, not with the chain. Black-Scholes on the forward with no interest rate reproduces them (there is a test against a live contract), works for the whole chain from one call, and will serve stock options too.
+
+**The chance of profit is the lognormal probability of finishing past breakeven at the implied volatility.** It is what the market is pricing, and the help text says it is not a forecast.
+
+**The stock-option fee default is zero until stock options are built**, because the brief says to take it from the venue's fee page, and that page has not been read yet.
+
+**Options is a view off the rail** (`#options`, `G` then `P`, or "Options" on the desk ticket). The brief puts the chain behind the desk ticket, and the rail has to keep room for Launchpad on a phone.
+

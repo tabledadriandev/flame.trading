@@ -6,6 +6,7 @@ import { setFrameErrorHandler } from '../data/schedule';
 import { SIM } from '../lib/env';
 import { startLive, stopLive } from './live';
 import { startFunding, stopFunding } from './funding';
+import { startExpiry, stopExpiry } from './options';
 import { useMarket } from './market';
 import { flush, freezeSaves, load, persistent, setSaveErrorHandler } from './persist';
 import { useSettings, type Settings } from './settings';
@@ -43,6 +44,7 @@ function claimAccount(): Promise<boolean> {
               // Stand down completely: no feeds, no engine, nothing saved from here on.
               stopLive();
               stopFunding();
+              stopExpiry();
               useAccount.setState({ elsewhere: true });
               release();
             });
@@ -126,5 +128,6 @@ export async function boot(): Promise<void> {
   if (account.ok) {
     startLive();
     startFunding();
+    startExpiry();
   }
 }

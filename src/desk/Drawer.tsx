@@ -15,7 +15,19 @@ import { Help, PaneState, SideTag, Tabs, type TabDef } from '../ui/controls';
 
 export type DrawerTab = 'positions' | 'orders' | 'fills' | 'journal';
 
-const modeName = (p: { cls: string; mode: string }): string => (p.mode === 'spot' ? 'Spot' : p.cls === 'crypto' ? 'Perp' : 'Margin');
+const COVER_NAME = { shares: 'covered call', cash: 'cash-secured', spread: 'spread' } as const;
+
+function modeName(p: { cls: string; mode: string; cover?: Position['cover'] }): string {
+  if (p.cls === 'option') return p.mode === 'spot' ? 'Bought' : p.cover ? `Sold, ${COVER_NAME[p.cover.kind]}` : 'Sold';
+  return p.mode === 'spot' ? 'Spot' : p.cls === 'crypto' ? 'Perp' : 'Margin';
+}
+
+/** An option is counted in contracts, not in the shares or coins it covers. */
+function sizeText(p: { qty: number; option?: Position['option'] }, ref: number): string {
+  if (!p.option) return qty(p.qty, ref);
+  const n = Math.round((p.qty / p.option.multiplier) * 1000) / 1000;
+  return `${n} ${n === 1 ? 'contract' : 'contracts'}`;
+}
 
 function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quote: (id: string) => ReturnType<typeof quoteFor>; replay: boolean }) {
   const account = useAccount((s) => s[book]);
@@ -26,12 +38,14 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
   // In Replay the mark is the bar being replayed, never the live price.
   const q = replay ? quote(p.instrument) : liveQuote;
   const i = instrument(p.instrument);
+  const option = p.cls === 'option';
   const mark = q?.last ?? p.entry;
   const u = unrealised(p, mark);
-  const basis = p.mode === 'lev' ? p.margin : p.entry * p.qty;
+  const basis = p.mode === 'lev' && !option ? p.margin : p.entry * p.qty;
   const trade = account.trades.find((t) => t.id === p.tradeId);
   const r = trade?.initialRisk ? u / trade.initialRisk : undefined;
-  const liq = positionLiquidationPrice(p, rulesFor(p.cls, engineSettings()).mmr);
+  // A sold option is fully covered: nothing liquidates it.
+  const liq = option ? null : positionLiquidationPrice(p, rulesFor(p.cls, engineSettings()).mmr);
   const { sl, tp } = bracketsFor(account, p);
   const tone = u >= 0 ? 'hot' : 'cold';
   const atBreakeven = sl?.stop !== undefined && Math.abs(sl.stop - p.entry) < p.entry * 1e-6;
@@ -41,6 +55,10 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
       <td className="l">
         {replay ? (
           <strong>{i.symbol}</strong>
+        ) : option ? (
+          <a className="link" href="#options" title="Open the option chain">
+            {i.symbol}
+          </a>
         ) : (
           <button type="button" className="link" onClick={() => select(p.instrument)} title={`Show ${i.symbol} on the desk`}>
             {i.symbol}
@@ -48,13 +66,13 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
         )}{' '}
         <span className="sub">
           {modeName(p)}
-          {p.mode === 'lev' ? ` ${effectiveLeverage(p).toFixed(effectiveLeverage(p) % 1 ? 1 : 0)}×` : ''}
+          {p.mode === 'lev' && !option ? ` ${effectiveLeverage(p).toFixed(effectiveLeverage(p) % 1 ? 1 : 0)}×` : ''}
         </span>
       </td>
       <td className="l">
         <SideTag side={p.dir === 'long' ? 'buy' : 'sell'}>{p.dir === 'long' ? 'Long' : 'Short'}</SideTag>
       </td>
-      <td>{qty(p.qty, p.entry)}</td>
+      <td>{sizeText(p, p.entry)}</td>
       <td>{price(p.entry)}</td>
       <td>{q ? price(mark) : '—'}</td>
       <td className={tone}>{money(u, { signed: true })}</td>
@@ -76,7 +94,7 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
           >
             Close
           </button>
-          {p.mode === 'lev' ? (
+          {p.mode === 'lev' && !option ? (
             <button
               type="button"
               className="btn btn-sm"
@@ -90,6 +108,7 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
               Reverse
             </button>
           ) : null}
+          {option ? null : (
           <button
             type="button"
             className="btn btn-sm"
@@ -104,6 +123,7 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
           >
             Stop to entry
           </button>
+          )}
         </span>
       </td>
     </tr>
@@ -125,13 +145,13 @@ function OrderRow({ o, book, quote, replay }: { o: Order; book: Book; quote: (id
   return (
     <tr>
       <td className="l">
-        {i.symbol} <span className="sub">{modeName(o)}</span>
+        {i.symbol} <span className="sub">{o.cls === 'option' ? '' : modeName(o)}</span>
       </td>
       <td className="l">
         <SideTag side={o.side}>{o.side === 'buy' ? 'Buy' : 'Sell'}</SideTag>
       </td>
       <td className="l">{kind}</td>
-      <td>{o.role === 'entry' ? qty(o.qty, at ?? 1) : 'Whole position'}</td>
+      <td>{o.role === 'entry' ? sizeText(o, at ?? 1) : 'Whole position'}</td>
       <td>
         {editing !== null ? (
           <input

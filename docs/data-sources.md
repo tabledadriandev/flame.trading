@@ -97,30 +97,47 @@ A venue that is reconnecting is left out and named in the pane.
 
 Build the crypto list from Binance `GET /api/v3/ticker/24hr`: USDT pairs, ranked by quote volume, top 40, minus stablecoin-to-stablecoin pairs and leveraged tokens. Map each to the other venues' symbols with a small table; a coin a venue does not list simply has no book contribution from it.
 
+## Crypto options: Deribit, direct from the browser (verified 17 November 2026)
+
+BTC and ETH options. No key. The browser calls Deribit itself; nothing goes through `/api`. `src/data/deribit.ts`.
+
+| What | Call | What came back |
+|---|---|---|
+| The whole chain | `GET https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option` | 954 BTC options in one 518 kB answer (0.12 s). Each row: `instrument_name`, `bid_price`, `ask_price` (null when nobody quotes that side), `mark_price`, `mark_iv` (in percent), `open_interest`, `volume`, `underlying_price` (the forward for that expiry) and `estimated_delivery_price` (the index). **No greeks in this call** |
+| One contract, live | WebSocket `wss://www.deribit.com/ws/api/v2`, `public/subscribe` to `ticker.<instrument>.100ms` | Works without signing in. Sends a snapshot at once, then only when something changes: `best_bid_price`, `best_ask_price` (0 when empty), `mark_price`, `mark_iv`, `index_price`, `underlying_price`, and `greeks` |
+| The index | `deribit_price_index.btc_usd` on the same socket | One message a second. Flame uses it to convert to dollars and as proof the connection is alive |
+| Settlement | `GET …/public/get_delivery_prices?index_name=btc_usd&offset=&count=` | `{date: "2026-11-17", delivery_price: 64592.83}` per day, newest first: the index averaged over the half hour before 08:00 UTC |
+| Contract list | `get_instruments?currency=BTC&kind=option&expired=false` | Not needed: every field Flame uses is in the instrument name. Confirms `contract_size` 1, `min_trade_amount` 0.1, `taker_commission` 0.0003 |
+
+- **CORS:** the REST API answers `access-control-allow-origin` with the caller's origin. `https://www.deribit.com` and `wss://www.deribit.com` are in `connect-src` in `vercel.json`.
+- **Names:** `BTC-25JUN27-88000-C` is underlying, expiry (08:00 UTC that day), strike, call or put. Strikes below 1 use `d` for the decimal point (`0d55`). Flame's id is `opt:deribit:<name>`.
+- **Prices are in the coin.** `0.0375` means 0.0375 BTC. Flame multiplies by the index price, so the chain, the ticket and the account are in dollars, and the ticket says so.
+- **Greeks:** Flame computes them itself (`src/options/bs.ts`) from the forward, the mark IV and the time left, with no interest rate. That reproduces Deribit's own delta, theta and vega for a live contract to the precision in the unit test, and it means the stock-option chain can use the same code.
+- **Polling:** Deribit's documentation asks clients to subscribe, not to poll the summary. Flame reads the summary when the chain opens and every 20 seconds while it is visible (not at all in a hidden tab), and subscribes over the WebSocket only to the contract in the ticket and to contracts the account holds.
+- **Fees** (Deribit's fee page, read 17 November 2026, standard tier): 3 basis points of the underlying per contract for maker and taker alike, never more than 12.5% of the premium; at expiry 1.5 basis points, with the same cap, and nothing on daily expiries (any option that does not expire on a Friday).
+- **Not verified:** how Deribit rate-limits unauthenticated REST calls from one address (no limit was hit), and what its terms say about showing its prices on a public site. Raise the second with Adrian before announcing.
+
 ## Stocks, ETFs, indices, rates, commodities: through `/api`
 
-### Status on 17 November 2026: no working source
+### Status on 17 November 2026: built for Alpaca, never called for real
 
-**Yahoo Finance refuses Flame.** Tested three ways with a browser-like `User-Agent`, on `query1` and `query2`:
+**Provider: Alpaca Market Data** (Adrian's choice). `api/_lib/alpaca.ts` was written from Alpaca's documentation and has not made one successful call, because the key does not exist yet. Until `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` are set in Vercel (Production), every stock call answers `503 no_source` with "Stock prices are not switched on yet", and the stock panes say so.
 
-- from Adrian's Mac with `curl` and with Node: `429 Too Many Requests` on the first request of the day, for `chart`, `spark` and `search` alike
-- from the deployed function on Vercel (region `cdg1`): the same `429`
+What the code assumes, each to be confirmed with the first real call:
 
-So the block is not a rate limit Flame ran into; Yahoo now turns away clients that arrive without its cookies. Working around that (harvesting a cookie and crumb) would be defeating an access control, and Flame does not do it.
+- `GET https://data.alpaca.markets/v2/stocks/bars` with `feed=sip` and an end time 16 minutes ago is allowed on the free plan (the consolidated feed, delayed 15 minutes). If it is not, the fallback is `feed=iex` (one exchange, real time) and the label changes from "Delayed" to "IEX"
+- one call returns bars for many symbols, which is what `/api/quote/spark` relies on
+- the two keys go in the `APCA-API-KEY-ID` and `APCA-API-SECRET-KEY` headers. They are read only in `api/_lib/alpaca.ts`, never logged and never returned
+- search confirms an exact ticker; it does not search by company name
+- 200 requests a minute; Flame budgets 120 a minute per function instance and caches at the edge (15 seconds intraday, an hour for daily bars)
 
-**The fallbacks this page used to name do not work either.** Stooq's CSV endpoints now answer with a JavaScript proof-of-work page ("This site requires JavaScript to verify your browser"). Cboe's delayed-quote files answer `307` from Cloudflare.
+Still to build once the key exists (Phase 5B): the "IEX" and "Delayed 15 min" labels, in-flight request coalescing, and serving the cached value marked stale when the budget is spent.
 
-**What is built.** The three functions exist, validate their input and return clean JSON errors; today every upstream call ends in `503 upstream_rate_limited`. The browser side (`src/data/stocks.ts`) talks only to `/api/quote/*`, so the stock views, the "Delayed" label, margin mode and market-hours rules are all in place and show an honest "These quotes are not available" state.
+**What was tried first and does not work.** Yahoo Finance answers `429` to any client without its cookies, from Adrian's Mac and from Vercel alike; getting round that would be defeating an access control, and Flame does not. Stooq's CSV endpoints now answer with a JavaScript proof-of-work page. Cboe's delayed-quote files answer `307` from Cloudflare.
 
-**What unblocks it.** A licensed or key-based feed, with the key in a Vercel environment variable (never in the browser, never asked of users). Only `api/_lib/yahoo.ts` and the three handlers need to change; the response shape stays. Candidates, none tested because each needs an account:
+**Indices, rates, commodities and currencies** are not in Alpaca's feed. The Markets boards show each through the ETF that tracks it (SPY, QQQ, DIA, IWM, VIXY; TLT, GLD, USO), labelled as such. Rates and currency proxies (SHY, UUP, FXE) and silver (SLV) are not added yet.
 
-| Provider | Free tier (as advertised; verify) | Fit |
-|---|---|---|
-| Alpaca Market Data | IEX real-time and 15-minute-delayed consolidated bars, about 200 requests a minute | Best fit: bars at every timeframe Flame uses, snapshots for many symbols in one call. Stocks and ETFs only; no indices, rates or futures |
-| Twelve Data | About 800 requests a day, 8 a minute | Covers stocks, ETFs, some indices and FX; the daily budget is tight for polling a watchlist |
-| Finnhub | 60 requests a minute; quotes free, intraday candles paid | Quotes only; not enough for charts |
-
-Until then, acceptance check 5 (SPY, "Delayed", buy 10 shares) cannot pass on the live site. The same flow passes with the simulated feed (`?sim=1`), which exercises everything except the upstream call.
+Acceptance check 5 (SPY, "Delayed", buy 10 shares) cannot pass on the live site until the key exists. The same flow passes with the simulated feed (`?sim=1`), which exercises everything except the upstream call.
 
 ### The intended shape
 
@@ -152,18 +169,42 @@ Checked against each exchange's own page on 17 November 2026:
 | Frankfurt (Xetra) | **Not confirmed.** The official pages redirected or returned 404 |
 | Tokyo | **Not confirmed.** `jpx.co.jp` returned 403 |
 
-## Prediction markets: through `/api`
+## Prediction markets: through `/api` (verified 17 November 2026)
 
-Polymarket publishes two public APIs:
+Polymarket publishes two public APIs, and Flame proxies both:
 
-- **Gamma** (`https://gamma-api.polymarket.com`): the catalogue. `GET /events?closed=false&order=volume24hr&ascending=false&limit=50` lists events with their markets, outcomes, outcome prices, volume and end date; tags give the topics.
-- **CLOB** (`https://clob.polymarket.com`): prices and books. `GET /book?token_id=` for a market's order book, `GET /prices-history?market=<token_id>&interval=1w&fidelity=60` for the probability history.
+- **Gamma** (`https://gamma-api.polymarket.com`): the catalogue. `/api/odds/events?topic=` lists up to 24 events for a topic with their markets, outcomes, prices, volume and end date. Cached 30 seconds.
+- **CLOB** (`https://clob.polymarket.com`): `/api/odds/market?token=&history=` returns one market's order book and, when asked, a week of hourly probabilities. Cached 10 seconds (60 with history).
 
-Proxy both (`/api/odds/events`, `/api/odds/book`, `/api/odds/history`) with a 30-second cache. Paper fills use the best ask to buy and best bid to sell. A market that resolves pays $1 or $0 a share; read resolution from Gamma.
+Paper fills use the best ask to buy and the best bid to sell. A resolved market pays each outcome its final price: $1 to the winner and $0 to the rest, or a split when it resolves as a draw or as invalid.
 
-## News: through `/api`
+## News: through `/api` (verified 17 November 2026)
 
-`/api/news` fetches a short list of public RSS feeds on the server, merges them newest first, and returns title, link, source, time and any tickers matched in the title. Cache for two minutes. Choose feeds whose terms allow headline-and-link display, show the source name on every item, and link out rather than reproducing article text. Start with exchange and central-bank press feeds (SEC, Federal Reserve, ECB) and add news publishers only after reading their feed terms.
+`/api/news` fetches four press feeds on the server, merges them newest first, and returns title, link, source and time. Cached two minutes. Every headline links to the source's own page; no article text is reproduced.
+
+| Source | Feed |
+|---|---|
+| Federal Reserve | `https://www.federalreserve.gov/feeds/press_all.xml` |
+| European Central Bank | `https://www.ecb.europa.eu/rss/press.html` |
+| US Securities and Exchange Commission | `https://www.sec.gov/news/pressreleases.rss` |
+| Bank of England | `https://www.bankofengland.co.uk/rss/news` |
+
+A link is passed on only if it points at the source's own host. Add news publishers only after reading their feed terms.
+
+## Perp funding and open interest: Hyperliquid, direct (verified 17 November 2026)
+
+`POST https://api.hyperliquid.xyz/info` with `{"type":"metaAndAssetCtxs"}` answers with CORS. Per coin: the hourly funding rate, open interest, mark and oracle prices and the day's volume. Flame applies the hourly rate to open crypto perp positions once an hour while it is open, and the Flow view shows funding and open interest from the same call.
+
+## Rules for every `/api` function
+
+Each handler goes through `proxy()` in `api/_lib/http.ts`:
+
+- GET and HEAD only; only the parameters the endpoint defines (an unknown one is refused, because it would make a new cache key and so a way round the edge cache to the upstream)
+- a browser request from another site is refused (`Sec-Fetch-Site`)
+- 90 requests a minute per address, and a budget per upstream, both per function instance: a brake, not a guarantee
+- upstream hosts are fixed in code; nothing a caller sends chooses a host
+- responses are read with a size cap and a time limit, and errors come back as clean JSON with a sentence fit to show in a pane
+- relative imports end in `.js` (the functions run as native ES modules)
 
 ## What Flame does not use
 

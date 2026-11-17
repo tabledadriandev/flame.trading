@@ -320,5 +320,6 @@ export const BOOK_VENUES: BookVenue[] = [coinbase, kraken, bitstamp, okx, bybit,
 export const VENUE_NAMES: Record<string, { name: string; short: string }> = {
   binance: { name: 'Binance', short: 'BIN' },
   sim: { name: 'Simulated', short: 'SIM' },
+  deribit: { name: 'Deribit', short: 'DRB' },
   ...Object.fromEntries(BOOK_VENUES.map((v) => [v.id, { name: v.name, short: v.short }])),
 };
