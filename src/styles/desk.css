@@ -215,6 +215,25 @@
   padding: 0 var(--s-2) 0 var(--s-3);
 }
 
+/* A narrow watchlist (the desk eases it on small windows) drops the sparkline before it clips a price. */
+.pane-watch {
+  container-type: inline-size;
+}
+
+@container (max-width: 232px) {
+  .watch-head,
+  .watch-row {
+    grid-template-columns: minmax(30px, 1fr) minmax(56px, auto) 46px;
+    gap: 4px;
+    padding: 0 6px 0 10px;
+  }
+
+  .watch-head > :nth-child(2),
+  .watch-row > :nth-child(2) {
+    display: none;
+  }
+}
+
 .watch-head {
   position: sticky;
   top: 0;
@@ -924,7 +943,8 @@
   flex: 2 1 0;
 }
 
-@media (max-width: 860px) {
+/* The stacked desk (see STACK_BELOW in state/layout.ts). */
+@media (max-width: 999px) {
   .pane-chart .pane-head {
     height: auto;
     min-height: var(--pane-head);
@@ -952,8 +972,10 @@
   .pane-drawer .pane-body {
     overflow-x: auto;
   }
+}
 
-  /* Comfortable touch targets. */
+/* Comfortable targets wherever a finger does the picking. Book.tsx reads the same query for its row height. */
+@media (max-width: 999px), (pointer: coarse) {
   .ticket .seg-item {
     height: 36px;
   }

@@ -290,7 +290,7 @@ export function Replay() {
     return (
       <div className="replay-review">
         <header className="jtop">
-          <h1 className="page-title">What you did, and what happened next</h1>
+          <h2 className="page-title">What you did, and what happened next</h2>
           <div className="jtop-actions">
             <button type="button" className="btn btn-primary" onClick={() => { setSession(null); setPhase('setup'); }}>
               Replay another moment

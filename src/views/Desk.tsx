@@ -6,15 +6,15 @@ import { Tape } from '../desk/Tape';
 import { Ticket } from '../desk/Ticket';
 import { Watchlist } from '../desk/Watchlist';
 import { useMedia, useSize } from '../lib/hooks';
-import { useLayout } from '../state/layout';
+import { STACK_BELOW, fitSizes, useLayout } from '../state/layout';
 import { useMarket } from '../state/market';
 import { useReplaySeed } from '../state/replay';
 import { useTicket } from '../state/ticket';
 import { Divider } from '../ui/Divider';
 
 // The desk is the terminal itself: every pane a trader needs on one screen.
-// Every divider drags and the sizes persist. On a phone the panes become a
-// swipeable stack.
+// Every divider drags and the sizes persist. On a phone, or any window too
+// narrow for four columns, the panes become a swipeable stack.
 
 /** "Replay from here" on the chart: open Replay at that bar, same instrument and timeframe. */
 function replayFrom(t: number): void {
@@ -24,7 +24,10 @@ function replayFrom(t: number): void {
 }
 
 function WideDesk() {
-  const sizes = useLayout((s) => s.sizes);
+  const stored = useLayout((s) => s.sizes);
+  const [desk, deskSize] = useSize<HTMLDivElement>();
+  // What is drawn: the stored sizes, eased on a narrow desk so the chart keeps its share.
+  const sizes = fitSizes(stored, deskSize.width);
   const setSize = useLayout((s) => s.setSize);
   const zen = useLayout((s) => s.zen);
   const maximised = useLayout((s) => (s.zen ? 'chart' : s.maximised));
@@ -32,6 +35,7 @@ function WideDesk() {
   return (
     <div
       className="desk"
+      ref={desk}
       data-max={maximised ?? undefined}
       data-zen={zen ? 'true' : undefined}
       style={
@@ -136,6 +140,6 @@ function PhoneDesk() {
 }
 
 export function Desk() {
-  const phone = useMedia('(max-width: 860px)');
+  const phone = useMedia(`(max-width: ${STACK_BELOW - 1}px)`);
   return phone ? <PhoneDesk /> : <WideDesk />;
 }

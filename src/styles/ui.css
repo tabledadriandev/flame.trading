@@ -351,6 +351,14 @@ input[type='range'] {
   background: transparent;
   color: var(--ink-2);
   cursor: help;
+  position: relative;
+}
+
+/* The mark stays 16px; the target around it is 24px. */
+.help-btn::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
 }
 
 .help-btn:hover {

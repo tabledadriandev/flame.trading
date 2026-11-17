@@ -120,7 +120,8 @@ export function Book({ rangePct = 0.01 }: { rangePct?: number }) {
   const hasBook = r?.adapter.hasBook ?? false;
   const decimals = Math.max(0, Math.ceil(-Math.log10(tick)));
   const l = feed.ladder;
-  const phone = useMedia('(max-width: 860px)');
+  // Taller rows where a finger does the picking. Keep in step with the touch block in desk.css.
+  const phone = useMedia('(max-width: 999px), (pointer: coarse)');
   const perSide = Math.max(3, Math.floor((size.height - 26) / 2 / (phone ? ROW_PHONE : ROW)) - (open ? 1 : 0));
   const asks = l ? l.asks.slice(0, perSide) : [];
   const bids = l ? l.bids.slice(0, perSide) : [];

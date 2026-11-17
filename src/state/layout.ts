@@ -25,6 +25,36 @@ export const LIMITS: Record<keyof Sizes, [number, number]> = {
   ladder: [0.25, 0.85],
 };
 
+/** The chart never gets less than this, or less than this share of the desk. */
+export const MIN_CHART = 320;
+export const CHART_SHARE = 0.36;
+/** The desk stacks into one pane at a time below this width: under it the minimum columns and a usable chart do not fit. */
+export const STACK_BELOW = 1000;
+
+const COLUMNS = ['watch', 'book', 'ticket'] as const;
+
+/**
+ * The column widths to draw at this desk width. The stored sizes are what the
+ * trader chose on a wide screen; on a narrower one the three side columns
+ * give way, in proportion and never below their minimums, so the chart keeps
+ * a usable share. The stored sizes are not changed.
+ */
+export function fitSizes(s: Sizes, width: number): Sizes {
+  if (!(width > 0)) return s;
+  const side = s.watch + s.book + s.ticket;
+  const room = width - Math.max(MIN_CHART, Math.round(width * CHART_SHARE)) - COLUMNS.length;
+  if (side <= room) return s;
+  const minSide = COLUMNS.reduce((sum, k) => sum + LIMITS[k][0], 0);
+  const spare = Math.max(0, room - minSide);
+  const over = side - minSide;
+  const out = { ...s };
+  for (const k of COLUMNS) {
+    const min = LIMITS[k][0];
+    out[k] = Math.floor(min + (over > 0 ? ((s[k] - min) * spare) / over : 0));
+  }
+  return out;
+}
+
 export type PaneId = 'watch' | 'chart' | 'book' | 'tape' | 'ticket' | 'drawer';
 
 export interface LayoutDoc {

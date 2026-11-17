@@ -237,7 +237,9 @@ export function Flow() {
   if (i.cls !== 'crypto') {
     return (
       <div className="setup">
-        <h1 className="page-title">Flow</h1>
+        <h1 className="page-title" aria-hidden="true">
+          Flow
+        </h1>
         <p className="setup-lede">
           Order flow needs every trade and a live order book, which Flame has for coins but not for {i.symbol}. Pick a coin to see who is buying and who is selling.
         </p>

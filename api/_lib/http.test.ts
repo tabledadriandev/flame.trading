@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { CLIENT_PER_MINUTE, Limiter, gate, type VercelRequest } from './http.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CLIENT_PER_MINUTE, Limiter, fetchText, gate, type VercelRequest } from './http.js';
 
 const req = (over: Partial<VercelRequest> = {}): VercelRequest => ({ method: 'GET', query: {}, headers: { 'x-real-ip': '203.0.113.7' }, ...over });
 
@@ -42,5 +42,35 @@ describe('limiter', () => {
     expect(l.take('a', 2, 20)).toBe(false);
     expect(l.take('b', 2, 20)).toBe(true);
     expect(l.take('a', 2, 1_011)).toBe(true);
+  });
+});
+
+describe('upstream read', () => {
+  const answer = (body: BodyInit, headers: Record<string, string> = {}) => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200, headers })));
+  };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('returns a body within the limit', async () => {
+    answer('{"ok":true}');
+    expect(await fetchText({ name: 'Test A', url: 'https://example.com/a', maxBytes: 64 })).toBe('{"ok":true}');
+  });
+
+  it('refuses a body that declares more than the limit', async () => {
+    answer('x'.repeat(200), { 'content-length': '200' });
+    await expect(fetchText({ name: 'Test B', url: 'https://example.com/b', maxBytes: 64 })).rejects.toMatchObject({ status: 502, code: 'upstream_too_large' });
+  });
+
+  it('stops reading a body that runs past the limit without declaring it', async () => {
+    let pulled = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulled += 1;
+        c.enqueue(new Uint8Array(40));
+      },
+    });
+    answer(stream);
+    await expect(fetchText({ name: 'Test C', url: 'https://example.com/c', maxBytes: 100 })).rejects.toMatchObject({ code: 'upstream_too_large' });
+    expect(pulled).toBeLessThan(10);
   });
 });
