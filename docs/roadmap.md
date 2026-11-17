@@ -65,16 +65,24 @@ Also in this phase, from the review of the data and state layers:
 - [x] Replay with the practice account
 - [x] Lab: four built-in strategies, costs, out-of-sample check
 - [x] Settings: theme, fees, default risk, confirm-before-order, sounds, fill-at-last-close
-- [x] Acceptance items 6, 7 and 9
+- [x] Acceptance items 6 and 7, checked on flame.trading on 17 November 2026
+- [ ] Acceptance item 9 (offline). The service worker precaches the app shell and the top bar says "Offline: feeds paused", but nobody has yet opened the deployed site with the network off. Check it before calling Phase 4 closed
 
-## Phase 5: depth
+## Phase 5: depth (in progress; resume here)
 
-- [ ] Flow view: footprint, volume profile, cumulative delta, large global book, funding and open interest
-- [ ] Odds view: Polymarket catalogue, market page, paper positions, settlement
-- [ ] News view
-- [ ] Alerts (price crosses a level) as in-app and system notifications
-- [ ] Anchored VWAP, visible-range volume profile, more indicators by demand
-- [ ] Classic green/red colour option, validated
+Done so far:
+
+- [x] Alerts (price crosses a level) as in-app notices, and as system notifications when the browser has already granted permission. Still to do: a button that asks for that permission
+- [x] Anchored VWAP and the volume profile (shipped with Phase 2)
+- [x] Server side of Odds: `/api/odds/events?topic=` and `/api/odds/market?token=&history=1`, verified on flame.trading (`api/_lib/poly.ts`)
+- [x] Server side of News: `/api/news` (Federal Reserve, ECB, SEC, Bank of England press feeds), verified on flame.trading (`api/_lib/rss.ts`)
+
+Not started:
+
+- [ ] Odds view (`src/views/Odds.tsx`): topic tabs, cards, market page with probability history and a dollar ticket, paper positions, settlement. Plan: a `poly` venue adapter in `src/data/poly.ts` registered with `registerVenue('poly', …)` so positions are marked; instrument ids `poly:<token id>`; the engine already has `cls: 'odds'` and `settle()`, both tested. Add `'odds'` to `KEYS` in `src/state/persist.ts` to keep each token's question and outcome name
+- [ ] News view (`src/views/News.tsx`) over `/api/news`: headline, source, time, subject tags that open on the desk
+- [ ] Flow view: footprint (from the live trade stream plus Binance `aggTrades` for backfill), volume profile, cumulative delta, the large merged book (`<Book rangePct={0.02} />`), funding and open interest from Hyperliquid (`POST /info {"type":"metaAndAssetCtxs"}`: not yet verified; check CORS first). `applyFunding()` exists in the engine and is tested but nothing calls it yet
+- [ ] Classic green/red colour option. The setting and the `data-convention="classic"` attribute exist, but `tokens.css` has no classic values yet, so choosing it changes nothing. Validator results on 17 November 2026: the pair in `docs/design-system.md` fails colour-blind separation (ΔE 2.9 and 5.0). Light theme: `#2f9e6e` with `#a8201a` passes every check (ΔE 14.8), green as text needs `#1f7a52`. Dark theme: no pair tried yet passes the lightness band; greens must be at or below L 0.67 (try around `#3fae7c`) with a red near `#d2553f`
 
 ## Phase 6: reviews before telling anyone
 
@@ -112,6 +120,11 @@ npx vercel@latest domains add flame.trading flame --scope stefan-code-js-project
 ```
 
 Notes for the next session:
+
+- Last verified on flame.trading: acceptance items 1, 4, 6 and 7. Items 2 and 3 pass locally against live Binance data but were not re-run on the deployed site. Item 5 is blocked on a stock data source. Item 8 needs a real iPhone. Item 9 is unverified.
+- Commit `8fbed71` (feed batches fall back to a timer when animation frames stall) is deployed but the desk has not been looked at on flame.trading since. Open it and confirm the watchlist prices move.
+- The installed app updates through a prompt ("A new version of Flame is ready"); a tab opened before a deploy keeps the old build until reloaded.
+- Phase 6 has not been started: the cross-view design critique, accessibility review, `consistent-ui` sweep, security audit of `/api`, the performance pass and the first-visit introduction with the disclaimer are all still to do.
 
 - The Vercel CLI on this Mac is logged in as `tabledadriandev`; `.vercel/` and `.env.local` are local only (ignored by git).
 - The Vercel connector in the chat cannot see this project (404). Use the CLI (`npx vercel@latest api …`) for project settings.
