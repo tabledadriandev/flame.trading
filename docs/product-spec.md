@@ -179,10 +179,13 @@ These are the engine's contract. Each line needs a test.
 
 **On-chain tokens** (`src/engine/meme.test.ts` and `pool.test.ts` have a test for each line)
 - Spot only: no leverage and no shorting. Market orders only: a pool has no book to rest an order in. No stops or targets.
-- Fills come from the pool, not a book. With x tokens and y dollars in the pool, spending Δy buys x·Δy ÷ (y + Δy) tokens; selling is the mirror. The pool's fee is charged on top of a buy and out of a sale. Paper orders do not move the real pool.
-- One order may not be more than 2% of the pool's liquidity. The refusal says a bigger position could not be sold back.
-- A position is marked at what the pool would pay for the whole of it now, less the fee, not at the price on the screen. A drained pool therefore marks it near zero, and a position sold after the pool has lost nine tenths of the liquidity it had at entry is tagged "rugged" in the journal.
-- If the risk source says holders can be stopped from selling, a paper sale fails with the reason. If it reports a tax on transfers, the tax comes out of what a sale returns.
+- Fills come from the pool, not a book. With x tokens and y dollars in the pool, putting in Δy takes out x·Δy ÷ (y + Δy) tokens; selling is the mirror. The pool's fee is charged on top of a buy and out of a sale.
+- Paper orders do not move the real pool, so the account's own position counts as tokens it has already taken out. A buy continues up the curve from what is held and a sale comes back down it: splitting an order into pieces costs, or returns, exactly what the whole would.
+- A position may not be more than 2% of the pool's liquidity, at cost. The refusal says a bigger one could not be sold back.
+- A position is marked at what the pool would pay for the whole of it, less the fee and any tax, going by the last reading of the pool whatever its age; never at the price on the screen. With no reading at all it stays at cost and shows no P&L.
+- A pool reported with nothing in it is an empty pool: nothing can be bought, the position is marked at zero, and a sale returns nothing but closes the trade. A pool whose size the source does not report is unknown, not empty: no order is priced against it.
+- Any sale, whole or part, into a pool with a tenth or less of the liquidity it had when the position was bought (averaged over the buys, by size) tags the trade "rugged" in the journal, and it stays tagged.
+- What the risk source says about a token when it is bought is kept with the position. If it says holders can be stopped from selling, a paper sale fails with the reason and the position is valued at nothing. If it reports a tax on transfers, the tax comes out of every sale and out of the mark. On Solana a buy waits for the report, or for word that it could not be read.
 - An order needs a reading of the pool less than 75 seconds old.
 
 **Fees**

@@ -110,7 +110,7 @@ export async function boot(): Promise<void> {
     useAccount.setState({ ready: true, loadError: account.error });
   }
 
-  const lost = [!settings.ok && 'settings', !watch.ok && 'watchlists', !layout.ok && 'layout', !levels.ok && 'chart levels'].filter(Boolean);
+  const lost = [!settings.ok && 'settings', !watch.ok && 'watchlists', !layout.ok && 'layout', !levels.ok && 'chart levels', !tokens.ok && 'token names'].filter(Boolean);
   if (lost.length) toast(`Could not read your stored ${lost.join(', ')}. Defaults are in use.`, { sticky: true });
   if (!persistent) toast('This browser is not letting Flame store data. Your account will last only until this tab closes.', { sticky: true });
 

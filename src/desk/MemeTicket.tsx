@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { dexQuote, knownPool, knownRisk, parseDexId, poolRead, riskReport, type RiskReport } from '../data/dex';
+import { dexQuote, knownPool, knownRisk, lastPool, parseDexId, poolProblem, poolRead, riskReport, type RiskReport } from '../data/dex';
 import { instrument } from '../data/instruments';
-import { buyFromPool, exitValue, poolLiquidity, poolOrderCap, poolPrice, sellToPool } from '../engine/pool';
+import { addCost, isEmpty, poolLiquidity, poolOrderCap, poolPrice, positionValue, sellProceeds, tokensFor } from '../engine/pool';
 import { posKey, type OrderInput } from '../engine/types';
-import { compact, dollars, money, parseNumber, tokenPrice } from '../lib/format';
+import { clock, compact, dollars, money, parseNumber, tokenPrice } from '../lib/format';
 import { useNow } from '../lib/hooks';
 import { useAccount } from '../state/account';
 import { useMarket } from '../state/market';
+import { toast } from '../state/toasts';
 import { keepToken } from '../state/tokens';
 import { Help, NumField, Pane, PaneState, Segmented } from '../ui/controls';
 import { FeedBadge } from '../ui/FeedBadge';
@@ -34,12 +35,14 @@ export function MemeTicket() {
 
   const at = parseDexId(id);
   const info = knownPool(id);
+  // Orders need a fresh reading. The holding line may use an older one, and says how old.
   const q = dexQuote(id, now);
   const pool = q?.pool;
   const symbol = info?.symbol ?? instrument(id).symbol;
   const held = account.positions[posKey(id, 'spot')];
+  const heldQty = held?.qty ?? 0;
 
-  // The contract report is asked for once the pool is known, and before any buy.
+  // The contract report is read once the pool is known. On Solana a buy waits for it, or for word that it failed.
   const token = info?.token;
   useEffect(() => {
     setRisk(knownRisk(id));
@@ -63,44 +66,68 @@ export function MemeTicket() {
 
   if (!at) return null;
 
+  // What the risk source says now, or what it said when the position was bought if it cannot be read now.
+  const blocked = q?.sellBlocked ?? held?.sellBlocked ?? null;
+  const tax = q?.sellTax ?? held?.sellTax ?? 0;
+  const empty = pool ? isEmpty(pool) : false;
+  const awaitingRisk = at.chain === 'solana' && risk === undefined && !riskProblem;
+
   const dollarsIn = parseNumber(spend);
-  const buy = pool && dollarsIn > 0 ? buyFromPool(pool, dollarsIn) : null;
-  const sellQty = held ? held.qty * (Number(share) / 100) : 0;
-  const sell = pool && sellQty > 0 ? sellToPool(pool, sellQty) : null;
+  const net = pool ? dollarsIn / (1 + pool.fee) : 0;
+  const buyTokens = pool && dollarsIn > 0 && !empty ? tokensFor(pool, heldQty, dollarsIn) : 0;
+  const buyPrice = buyTokens > 0 ? net / buyTokens : 0;
+  const spot = pool ? poolPrice(pool) : 0;
+  const sellQty = heldQty * (Number(share) / 100);
+  const proceeds = pool && sellQty > 0 ? sellProceeds(pool, heldQty, sellQty) : 0;
+  const sellFee = pool ? proceeds * pool.fee : 0;
+  const sellTax = proceeds * tax;
   const read = info ? poolRead(info, now) : null;
+  const why = poolProblem(id);
 
   let problem: string | null = null;
-  if (!pool) problem = info ? 'Waiting for a fresh reading of the pool.' : 'Reading the pool.';
+  if (!pool) problem = info ? `Waiting for a fresh reading of the pool.${why ? ` ${why}` : ''}` : 'Reading the pool.';
   else if (side === 'buy') {
-    if (!(dollarsIn > 0)) problem = 'Enter how many dollars to spend.';
+    if (empty) problem = 'The pool is empty: its liquidity has been pulled, and there is nothing to buy.';
+    else if (awaitingRisk) problem = 'Reading the RugCheck report on this token. A buy waits for it.';
+    else if (!(dollarsIn > 0)) problem = 'Enter how many dollars to spend.';
     else if (dollarsIn > account.cash) problem = `You have ${dollars(account.cash, 2)} in cash.`;
-    else if (buy && buy.dollars > poolOrderCap(pool) * (1 + 1e-9)) {
-      problem = `One order may not be more than 2% of the pool's liquidity: ${dollars(poolOrderCap(pool), 2)} here. A bigger position could not be sold back without moving the price against you.`;
-    } else if (!buy || !(buy.tokens > 0)) problem = 'The pool is empty: there is nothing to buy.';
+    else if (!(buyTokens > 0)) problem = 'The pool cannot fill an order of this size.';
+    else if (addCost(pool, 0, heldQty + buyTokens) > poolOrderCap(pool) * (1 + 1e-9)) {
+      problem = `A position may not be more than 2% of the pool's liquidity: ${dollars(poolOrderCap(pool), 2)} here${heldQty > 0 ? ', and you already hold some' : ''}. A bigger one could not be sold back without moving the price against you.`;
+    }
   } else if (!held) problem = `You hold no ${symbol}.`;
-  else if (q?.sellBlocked) problem = `This sale would fail. ${q.sellBlocked}`;
+  else if (blocked) problem = `This sale would fail. ${blocked}`;
 
   function submit() {
     const fresh = dexQuote(id);
-    if (problem || !fresh?.pool) return;
-    const qty = side === 'buy' ? buyFromPool(fresh.pool, dollarsIn).tokens : sellQty;
-    if (!(qty > 0)) return;
+    if (problem) return;
+    if (!fresh?.pool) {
+      toast('The reading of the pool went stale before the order could be placed. Nothing was done; try again when a new one arrives.');
+      return;
+    }
+    const qty = side === 'buy' ? tokensFor(fresh.pool, heldQty, dollarsIn) : sellQty;
+    if (!(qty > 0)) {
+      toast('The pool could not fill that order. Nothing was done.');
+      return;
+    }
     const input: OrderInput = { instrument: id, cls: 'meme', mode: 'spot', side, type: 'market', qty };
     const events = useAccount.getState().place(input, fresh);
     // Keep the token's name with the account from its first fill, for the journal.
     if (info && events.some((e) => e.type === 'fill')) keepToken(info);
   }
 
-  // A paper order does not move the real pool, so selling straight back meets the same curve again: the
-  // impact is paid a second time. This is also what the position will be marked at the moment it fills.
-  const backOut = buy && pool ? exitValue(pool, buy.tokens) : null;
-  const tax = q?.sellTax ?? 0;
+  // A paper order does not move the real pool, so what was just bought would be sold back down the same
+  // curve: the impact is paid again on the way out. This is also what the position is marked at.
+  const backOut = pool && buyTokens > 0 ? sellProceeds(pool, heldQty + buyTokens, buyTokens) * (1 - Math.min(1, pool.fee + tax)) : null;
+  const mark = lastPool(id);
+  const worth = held && mark ? positionValue(mark.pool, held.qty, tax, blocked !== null) : null;
+  const markStale = mark ? now - mark.t > 75_000 : false;
 
   return (
     <Pane label="Order ticket" title="Ticket" className="pane-ticket" tools={<FeedBadge instrumentId={id} />}>
       <div className="pane-body ticket meme-ticket">
         {!info ? (
-          <PaneState title="Reading the pool" />
+          <PaneState title="Reading the pool">{why ?? null}</PaneState>
         ) : (
           <>
             <Segmented<'buy' | 'sell'>
@@ -132,7 +159,7 @@ export function MemeTicket() {
             />
 
             {side === 'buy' ? (
-              <NumField label="Dollars to spend" prefix="$" value={spend} onChange={(t) => setSpend(t)} invalid={!(dollarsIn > 0)} note={pool ? `The pool takes at most ${dollars(poolOrderCap(pool), 2)} in one order.` : undefined} />
+              <NumField label="Dollars to spend" prefix="$" value={spend} onChange={(t) => setSpend(t)} invalid={!(dollarsIn > 0)} note={pool && !empty ? `A position in this pool can be at most ${dollars(poolOrderCap(pool), 2)}.` : undefined} />
             ) : (
               <div className="field">
                 <span className="field-label">How much of your {symbol} to sell</span>
@@ -143,54 +170,69 @@ export function MemeTicket() {
             <div className="ticket-preview" aria-live="polite">
               {problem ? (
                 <p className="ticket-problem">{problem}</p>
-              ) : side === 'buy' && buy && pool ? (
+              ) : side === 'buy' && pool ? (
                 <>
                   <p>
-                    Spend {dollars(dollarsIn, 2)}: about {count(buy.tokens)} {symbol} at {tokenPrice(buy.price)} each.
+                    Spend {dollars(dollarsIn, 2)}: about {count(buyTokens)} {symbol} at {tokenPrice(buyPrice)} each.
                   </p>
                   <p>
-                    Price impact {pctText(buy.impact)}, or {dollars(buy.impactDollars, 2)}: your own order pushes the price up as it fills.{' '}
-                    <Help>The pool holds ${compact(poolLiquidity(pool))}. Spending {dollars(buy.dollars, 2)} against the ${compact(pool.dollars)} on its dollar side moves the average price you pay by that share. In a thin pool even a small order pays a lot more than the price on the screen.</Help>
+                    Price impact {pctText(buyPrice / spot - 1)}, or {dollars(net - buyTokens * spot, 2)}: your own order pushes the price up as it fills.{' '}
+                    <Help>
+                      The pool holds ${compact(poolLiquidity(pool))}. Spending {dollars(net, 2)} against the ${compact(pool.dollars)} on its dollar side moves the average price you pay. In a thin pool even a small order pays a lot more than the price on the screen.
+                      {heldQty > 0 ? ' What you already hold counts as already taken from the pool, so adding to it costs more than the first buy did.' : ''}
+                    </Help>
                   </p>
-                  <p>Pool fee {dollars(buy.fee, 2)}.</p>
+                  <p>Pool fee {dollars(dollarsIn - net, 2)}.</p>
                   {backOut !== null ? (
                     <p>
-                      Sold straight back, it would return about {dollars(backOut * (1 - tax), 2)}: a cost of {dollars(dollarsIn - backOut * (1 - tax), 2)} just to get in and out.
+                      Sold straight back, it would return about {dollars(backOut, 2)}: a cost of {dollars(dollarsIn - backOut, 2)} just to get in and out.
                     </p>
                   ) : null}
                 </>
-              ) : sell && held ? (
+              ) : held && pool && empty ? (
+                <>
+                  <p>The pool is empty: its liquidity has been pulled. Selling returns nothing.</p>
+                  <p>It does close the position, at a loss of {dollars(held.entry * sellQty, 2)}, and records the trade as a rug in your journal.</p>
+                </>
+              ) : held && pool ? (
                 <>
                   <p>
-                    Sell {count(sellQty)} {symbol} for about {dollars(sell.dollars - sell.fee - sell.dollars * tax, 2)}.
+                    Sell {count(sellQty)} {symbol} for about {dollars(Math.max(0, proceeds - sellFee - sellTax), 2)}.
                   </p>
                   <p>
-                    Price impact {pctText(sell.impact)}, or {dollars(sell.impactDollars, 2)}: your own sale pushes the price down as it fills.
+                    Price impact {pctText(sellQty > 0 && spot > 0 ? 1 - proceeds / sellQty / spot : 0)}, or {dollars(sellQty * spot - proceeds, 2)}: your own sale pushes the price down as it fills.
                   </p>
                   <p>
-                    Pool fee {dollars(sell.fee, 2)}
-                    {tax > 0 ? `, and the token's contract keeps ${pctText(tax)} (${dollars(sell.dollars * tax, 2)})` : ''}.
+                    Pool fee {dollars(sellFee, 2)}
+                    {tax > 0 ? `, and the token's contract keeps ${pctText(tax)} (${dollars(sellTax, 2)})` : ''}.
                   </p>
-                  <p>Result on what you sell: {money(sell.dollars - sell.fee - sell.dollars * tax - held.entry * sellQty, { signed: true })}.</p>
+                  <p>Result on what you sell: {money(proceeds - sellFee - sellTax - held.entry * sellQty, { signed: true })}.</p>
                 </>
               ) : null}
             </div>
 
             <button type="button" className="btn btn-primary ticket-go" data-side={side} disabled={Boolean(problem)} onClick={submit}>
-              <span className="ticket-go-text">{side === 'buy' ? `Buy ${dollarsIn > 0 ? dollars(dollarsIn, 2) : ''} of ${symbol}` : `Sell ${share}% of your ${symbol}`}</span>
+              <span className="ticket-go-text">
+                {side === 'buy' ? `Buy ${dollarsIn > 0 ? dollars(dollarsIn, 2) : ''} of ${symbol}` : empty ? `Write off ${share}% of your ${symbol}` : `Sell ${share}% of your ${symbol}`}
+              </span>
             </button>
 
-            {held && pool ? (
+            {held ? (
               <p className="meme-held num">
-                You hold {count(held.qty)} {symbol}. The pool would pay {dollars(exitValue(pool, held.qty) * (1 - tax), 2)} for all of it now; at the price on the screen it looks like {dollars(held.qty * poolPrice(pool), 2)}.
+                You hold {count(held.qty)} {symbol}.{' '}
+                {worth === null
+                  ? 'There is no reading of the pool to value it with.'
+                  : blocked
+                    ? 'It is valued at nothing: Flame will not let it be sold.'
+                    : `The pool would pay ${dollars(worth, 2)} for all of it${markStale && mark ? `, going by the reading from ${clock(mark.t)}` : ' now'}; at the price on the screen it looks like ${dollars(held.qty * poolPrice(mark!.pool), 2)}.`}
               </p>
             ) : null}
 
             <section className="meme-risk" aria-label="Risk">
               <h3 className="pool-sub">Before you buy</h3>
-              {q?.sellBlocked ? (
+              {blocked ? (
                 <p className="meme-warn">
-                  <strong>You would not be able to sell this.</strong> {q.sellBlocked} Flame treats that as it plays out at worst: a paper sale of this token fails.
+                  <strong>You would not be able to sell this.</strong> {blocked} Flame treats that as it plays out at worst: a paper sale of this token fails.
                 </p>
               ) : null}
               {tax > 0 ? (
@@ -213,11 +255,11 @@ export function MemeTicket() {
                 <p className="sub">RugCheck has no report for this token.</p>
               ) : risk.items.length === 0 ? (
                 <p className="sub">
-                  RugCheck lists no risks for this token (score {risk.score} of 100, lower is safer). That is not a promise: most new tokens still go to zero.
+                  RugCheck lists no risks for this token{risk.score !== null ? ` (score ${risk.score} of 100, lower is safer)` : ''}. That is not a promise: most new tokens still go to zero.
                 </p>
               ) : (
                 <>
-                  <p className="sub">RugCheck score {risk.score} of 100 (lower is safer). It reports:</p>
+                  <p className="sub">{risk.score !== null ? `RugCheck score ${risk.score} of 100 (lower is safer). It reports:` : 'RugCheck reports:'}</p>
                   <ul className="meme-risks">
                     {risk.items.slice(0, 6).map((r) => (
                       <li key={r.name}>

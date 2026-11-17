@@ -170,3 +170,17 @@ A review for silent failures, run after the first options commit was live, found
 
 **Launchpad is "Launch" in the rail** so nine items fit a phone's bottom bar; the page and its title say Launchpad.
 
+## What the token review changed (17 November 2026)
+
+A review for silent failures, run after Launchpad went live, found these, all fixed the same day:
+
+- **The 2% cap is on the position, and orders are priced on the curve displaced by what is held.** As first built, the cap was per order and every order met an untouched pool, so thirty small buys collected more tokens than the pool held, at better prices than one large buy. Now what is held counts as already taken out of the pool: splitting changes nothing, in either direction.
+- **An empty pool is a state of its own.** Before, a pool with nothing in it was treated as "no reading", so the position could never be sold, was never tagged as a rug, and was still valued at the last price. Now it is marked at zero and a sale closes it for nothing, tagged rugged.
+- **A token's mark never changes basis.** It used to fall back to the last price times the size when the pool reading went stale, which could double the position's value until the reading came back. It now uses the last reading whatever its age, and shows no mark at all when there has never been one.
+- **What RugCheck said at the buy is stored on the position.** The report used to live only in memory while that token's ticket was open, so after a reload a blocked token could be sold and a taxed one sold untaxed. On Solana a buy now waits for the report.
+- **Unknown numbers are unknown.** Missing liquidity, volume or risk score used to read as zero, which listed pools as drained that were only unreported and showed "score 0, lower is safer".
+- **Rugged is decided on every sale and weighted over the buys**, so a profitable trade is not tagged because the first small buy happened in a bigger pool, and a part-sale into a drained pool is.
+- **A reading that is not newer than the last is a failed poll**, not a live feed; each pool keeps the reason its last read failed, and the ticket and Pool pane show it.
+- **Requests to GeckoTerminal queue at its own pace.** Counting to 24 a minute was not enough: it refuses bursts. See `docs/data-sources.md`.
+- The engine refuses a pool with impossible numbers, and never lets a fee and a tax together take more than the sale returns.
+

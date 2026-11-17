@@ -1,5 +1,5 @@
 import type { Quote } from '../engine/types';
-import { poolFrom, type Pool } from '../engine/pool';
+import { emptyPool, poolFrom, type Pool } from '../engine/pool';
 import { FeedError, tfMs, type BookSnapshot, type Candle, type CandleQuery, type FeedStatus, type Ticker, type Timeframe, type Unsubscribe, type VenueAdapter } from './types';
 
 // On-chain tokens: pools, their candles and trades from GeckoTerminal, both
@@ -42,8 +42,8 @@ export interface PoolInfo {
   dex: string;
   /** Dollars per token. */
   price: number;
-  /** Both sides of the pool, in dollars. */
-  liquidity: number;
+  /** Both sides of the pool, in dollars. Null when the source did not say: unknown is not empty. */
+  liquidity: number | null;
   marketCap: number | null;
   createdAt: number | null;
   /** Percent. */
@@ -51,7 +51,7 @@ export interface PoolInfo {
   trades24h: number;
   buys24h: number;
   sells24h: number;
-  volume24h: number;
+  volume24h: number | null;
   /** The pool's fee as a share of each trade, where GeckoTerminal publishes it. */
   fee: number | null;
   /** Share of the liquidity that is locked, in percent, where known. */
@@ -99,14 +99,14 @@ export function poolFromGecko(chain: Chain, data: unknown, included: unknown, no
     token: tokenRef.slice(tokenRef.indexOf('_') + 1),
     dex: ref('dex'),
     price,
-    liquidity: n(a.reserve_in_usd) ?? 0,
+    liquidity: n(a.reserve_in_usd),
     marketCap: n(a.market_cap_usd) ?? n(a.fdv_usd),
     createdAt: Number.isFinite(created) ? created : null,
     change: { m5: n(change.m5), h1: n(change.h1), h24: n(change.h24) },
     trades24h: buys + sells,
     buys24h: buys,
     sells24h: sells,
-    volume24h: n(vol.h24) ?? 0,
+    volume24h: n(vol.h24),
     fee: fee !== null && fee >= 0 && fee < 100 ? fee / 100 : null,
     lockedPct: n(a.locked_liquidity_percentage),
     t: now,
@@ -115,9 +115,44 @@ export function poolFromGecko(chain: Chain, data: unknown, included: unknown, no
 
 // ---------- Requests: one allowance, shared and cached ----------
 
-/** GeckoTerminal allows 30 calls a minute from one address. Flame keeps under it and says so when it cannot. */
-const GECKO_PER_MINUTE = 24;
-let geckoCalls: number[] = [];
+/**
+ * GeckoTerminal allows 30 calls a minute from one address and refuses a burst
+ * outright. Flame keeps its own allowance to match: a few requests may go at
+ * once, then one every couple of seconds. A request waits its turn; it is
+ * turned away only when the queue is already long.
+ */
+const GECKO_BURST = 4;
+const GECKO_REFILL = 2_300;
+const GECKO_QUEUE = 8;
+let geckoTokens = GECKO_BURST;
+let geckoStamp = 0;
+let geckoWaiting = 0;
+let geckoTurn: Promise<void> = Promise.resolve();
+const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+function geckoRefill(): void {
+  const now = Date.now();
+  if (geckoStamp === 0) geckoStamp = now;
+  geckoTokens = Math.min(GECKO_BURST, geckoTokens + (now - geckoStamp) / GECKO_REFILL);
+  geckoStamp = now;
+}
+
+/** Resolves when this request may be sent. */
+function geckoSlot(): Promise<void> {
+  geckoWaiting += 1;
+  const turn = geckoTurn.then(async () => {
+    geckoRefill();
+    if (geckoTokens < 1) {
+      await pause((1 - geckoTokens) * GECKO_REFILL);
+      geckoRefill();
+    }
+    geckoTokens -= 1;
+    geckoWaiting -= 1;
+  });
+  geckoTurn = turn;
+  return turn;
+}
+
 /** An answer and when it was fetched. The time travels with the answer, so a cached reading is never passed off as new. */
 interface Answer {
   body: unknown;
@@ -131,20 +166,32 @@ async function getJson(url: string, source: string, maxAge: number): Promise<Ans
   if (hit && Date.now() - hit.t < maxAge) return hit;
   const running = inflight.get(url);
   if (running) return running;
-  if (source === 'GeckoTerminal') {
-    const now = Date.now();
-    geckoCalls = geckoCalls.filter((t) => now - t < 60_000);
-    if (geckoCalls.length >= GECKO_PER_MINUTE) {
-      // Rather than fail, show what was read last if there is anything: it keeps its own, older, time.
-      if (hit) return hit;
-      throw new FeedError('GeckoTerminal allows 30 requests a minute and Flame has used them. Wait a moment and try again.', source, 429);
-    }
-    geckoCalls.push(now);
+  if (source === 'GeckoTerminal' && geckoWaiting >= GECKO_QUEUE) {
+    // Rather than fail, show what was read last if there is anything: it keeps its own, older, time.
+    if (hit) return hit;
+    throw new FeedError('Flame is already waiting on GeckoTerminal for several things (it allows 30 requests a minute). Try again in a moment.', source, 429);
   }
   const run = (async () => {
+    const ask = () => fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT) });
     let r: Response;
     try {
-      r = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT) });
+      if (source === 'GeckoTerminal') {
+        await geckoSlot();
+        try {
+          r = await ask();
+        } catch (err) {
+          if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) throw err;
+          // Refused all the same: GeckoTerminal's count is ahead of Flame's. Start the allowance from empty
+          // and try once more when a turn comes round.
+          // (Below empty, so that everything queued behind this waits several seconds, not one refill.)
+          geckoTokens = -2;
+          geckoStamp = Date.now();
+          await geckoSlot();
+          r = await ask();
+        }
+      } else {
+        r = await ask();
+      }
     } catch (err) {
       const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
       // A refusal for asking too often arrives without CORS headers, so the browser reports it as unreachable.
@@ -188,6 +235,8 @@ function poolsFrom(chain: Chain, { body, t }: Answer): PoolInfo[] {
       remember(p);
     }
   }
+  // A list in which nothing could be read is a failure, not an empty list.
+  if (body.data.length > 0 && out.length === 0) throw new FeedError('GeckoTerminal sent pools Flame could not read.', 'GeckoTerminal');
   return out;
 }
 
@@ -292,8 +341,8 @@ export interface RiskItem {
 }
 
 export interface RiskReport {
-  /** 0 to 100; higher is riskier. */
-  score: number;
+  /** 0 to 100; higher is riskier. Null when the report gave none. */
+  score: number | null;
   items: RiskItem[];
   lockedPct: number | null;
   /** Set when the report says holders can be stopped from selling. */
@@ -318,7 +367,7 @@ export function riskFromRugcheck(body: unknown): RiskReport | null {
       if (Number.isFinite(pct) && pct > 0 && pct < 100) sellTax = pct / 100;
     }
   }
-  return { score: n(body.score_normalised) ?? 0, items, lockedPct: n(body.lpLockedPct), sellBlocked, sellTax };
+  return { score: n(body.score_normalised), items, lockedPct: n(body.lpLockedPct), sellBlocked, sellTax };
 }
 
 const risks = new Map<string, RiskReport | null>();
@@ -339,7 +388,10 @@ export function poolRead(p: PoolInfo, now: number): { level: 'high' | 'medium' |
   const reasons: string[] = [];
   let points = 0;
   const hours = p.createdAt !== null ? (now - p.createdAt) / 3_600_000 : null;
-  if (p.liquidity < 5_000) {
+  if (p.liquidity === null) {
+    points += 2;
+    reasons.push('the size of the pool is not reported');
+  } else if (p.liquidity < 5_000) {
     points += 3;
     reasons.push('almost nothing in the pool');
   } else if (p.liquidity < 50_000) {
@@ -353,7 +405,7 @@ export function poolRead(p: PoolInfo, now: number): { level: 'high' | 'medium' |
     points += 1;
     reasons.push('less than a week old');
   }
-  if (p.marketCap !== null && p.liquidity > 0 && p.marketCap / p.liquidity > 100) {
+  if (p.marketCap !== null && p.liquidity !== null && p.liquidity > 0 && p.marketCap / p.liquidity > 100) {
     points += 1;
     reasons.push('valued at over 100 times what the pool holds');
   }
@@ -369,9 +421,11 @@ export function poolRead(p: PoolInfo, now: number): { level: 'high' | 'medium' |
   return { level: points >= 3 ? 'high' : points >= 1 ? 'medium' : 'lower', reasons };
 }
 
-/** Why a pool belongs under "Drained", or null. */
+/** Why a pool belongs under "Drained", or null. What is not known is left out, and the reason is what was observed. */
 export function drainedWhy(p: PoolInfo): string | null {
-  if (p.liquidity < 1_000 && p.volume24h > 5_000) return 'The liquidity is gone';
+  if (p.liquidity !== null && p.volume24h !== null && p.liquidity < 1_000 && p.volume24h > 5_000) {
+    return p.liquidity < 1 ? 'Nothing left in the pool' : 'Under $1,000 left in the pool, after real trading';
+  }
   if (p.change.h24 !== null && p.change.h24 <= -90) return `Down ${Math.abs(Math.round(p.change.h24))}% today`;
   return null;
 }
@@ -404,9 +458,23 @@ export const ASSUMED_FEE = 0.003;
 /** GeckoTerminal's allowance is small, so a pool is read every half minute, not streamed. */
 const POLL = 30_000;
 
+/** The pool as the engine prices against it. Null when its size is unknown; an empty pool when the liquidity is gone. */
 export function enginePool(p: PoolInfo): Pool | null {
+  if (p.liquidity === null) return null;
+  if (!(p.liquidity > 0)) return emptyPool(p.fee ?? ASSUMED_FEE);
   return poolFrom(p.liquidity, p.price, p.fee ?? ASSUMED_FEE);
 }
+
+/** The last reading of a pool, whatever its age, for marking a position: a mark never switches to another basis. */
+export function lastPool(id: string): { pool: Pool; t: number } | undefined {
+  const p = pools.get(id);
+  const pool = p ? enginePool(p) : null;
+  return p && pool ? { pool, t: p.t } : undefined;
+}
+
+const problems = new Map<string, string>();
+/** Why the last attempt to read this pool failed, if it did. */
+export const poolProblem = (id: string): string | undefined => problems.get(id);
 
 /** What an order on a pool fills against. Undefined when the pool has not been read recently. */
 export function dexQuote(id: string, now = Date.now()): Quote | undefined {
@@ -483,18 +551,31 @@ class DexAdapter implements VenueAdapter {
 
   subscribeTicker(symbol: string, on: (t: Ticker) => void): Unsubscribe {
     const { chain, address } = this.where(symbol);
+    const id = `dex:${symbol}`;
     let failures = 0;
+    let lastT = 0;
+    const failed = (why: string) => {
+      failures += 1;
+      problems.set(id, why);
+      this.setState(failures >= 3 ? 'down' : 'reconnecting');
+    };
     const poll = () =>
       fetchPool(chain, address)
         .then((p) => {
+          // The same reading again (the request allowance is spent and the cache answered) is not news.
+          if (p.t <= lastT) {
+            failed('No newer reading has arrived: Flame has used its allowance of requests to GeckoTerminal for this minute.');
+            return;
+          }
+          lastT = p.t;
           failures = 0;
+          problems.delete(id);
           this.setState('live');
           on({ last: p.price, changePct: p.change.h24 ?? NaN, t: p.t });
         })
         .catch((err: unknown) => {
-          failures += 1;
           console.warn(`[flame] pool ${symbol} could not be refreshed`, err);
-          this.setState(failures >= 3 ? 'down' : 'reconnecting');
+          failed(err instanceof Error ? err.message : 'The pool could not be read.');
         });
     void poll();
     const timer = setInterval(() => void poll(), POLL);

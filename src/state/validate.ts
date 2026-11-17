@@ -25,7 +25,7 @@ function cover(c: unknown): boolean {
 function position(p: unknown): boolean {
   // An option position must say which contract it is, and one that was sold must say what covers it.
   if (isObj(p) && p.cls === 'option' && !(optionSpec(p.option) && (p.mode === 'spot' || cover(p.cover)))) return false;
-  return isObj(p) && str(p.key) && str(p.instrument) && CLASSES.includes(p.cls as string) && MODES.includes(p.mode as string) && DIRS.includes(p.dir as string) && num(p.qty) && p.qty > 0 && num(p.entry) && p.entry >= 0 && num(p.margin) && p.margin >= 0 && str(p.tradeId) && num(p.openedAt) && optNum(p.liquidity0);
+  return isObj(p) && str(p.key) && str(p.instrument) && CLASSES.includes(p.cls as string) && MODES.includes(p.mode as string) && DIRS.includes(p.dir as string) && num(p.qty) && p.qty > 0 && num(p.entry) && p.entry >= 0 && num(p.margin) && p.margin >= 0 && str(p.tradeId) && num(p.openedAt) && optNum(p.liquidity0) && optNum(p.sellTax) && (p.sellBlocked === undefined || str(p.sellBlocked));
 }
 
 function order(o: unknown): boolean {

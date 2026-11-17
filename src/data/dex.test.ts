@@ -99,9 +99,25 @@ describe("Flame's read of a pool", () => {
   });
 
   it('lists a pool as drained when the liquidity has gone or the price has collapsed', () => {
-    expect(drainedWhy(pool({ liquidity: 40, volume24h: 90_000 }))).toBe('The liquidity is gone');
+    expect(drainedWhy(pool({ liquidity: 40, volume24h: 90_000 }))).toBe('Under $1,000 left in the pool, after real trading');
+    expect(drainedWhy(pool({ liquidity: 0, volume24h: 90_000 }))).toBe('Nothing left in the pool');
     expect(drainedWhy(pool({ change: { m5: 0, h1: -5, h24: -96.4 } }))).toBe('Down 96% today');
     expect(drainedWhy(pool({}))).toBeNull();
+  });
+
+  it('what the source did not report is unknown, not zero', () => {
+    const bare = poolFromGecko('solana', { ...GECKO_POOL, attributes: { ...GECKO_POOL.attributes, reserve_in_usd: null, volume_usd: {} } }, INCLUDED, NOW)!;
+    expect(bare.liquidity).toBeNull();
+    expect(bare.volume24h).toBeNull();
+    // Unknown liquidity is not "drained", and there is no pool to price an order against.
+    expect(drainedWhy(bare)).toBeNull();
+    expect(enginePool(bare)).toBeNull();
+    expect(poolRead(bare, NOW).reasons).toContain('the size of the pool is not reported');
+  });
+
+  it('a pool reported with nothing in it is an empty pool, not a missing one', () => {
+    const gone = enginePool(pool({ liquidity: 0 }))!;
+    expect(gone).toMatchObject({ tokens: 0, dollars: 0 });
   });
 });
 
@@ -126,6 +142,10 @@ describe('RugCheck', () => {
     const r = riskFromRugcheck({ risks: [{ name: 'Freeze Authority still enabled', description: 'Tokens can be frozen', level: 'danger' }, { name: 'Transfer fee', value: '8%', level: 'warn' }], score_normalised: 80 })!;
     expect(r.sellBlocked).toMatch(/cannot sell/);
     expect(r.sellTax).toBeCloseTo(0.08, 9);
+  });
+
+  it('a report with no score has no score, not the safest one', () => {
+    expect(riskFromRugcheck({ risks: [] })!.score).toBeNull();
   });
 
   it('is null for an answer that is not a report', () => {

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ToReview } from './Review';
-import { dexQuote } from '../data/dex';
+import { lastPool } from '../data/dex';
 import { instrument } from '../data/instruments';
-import { exitValue } from '../engine/pool';
+import { positionValue } from '../engine/pool';
 import { bracketsFor, workingOrders } from '../engine/engine';
 import { effectiveLeverage, positionLiquidationPrice, rulesFor, unrealised } from '../engine/rules';
 import type { Fill, Order, Position } from '../engine/types';
@@ -42,8 +42,11 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
   const i = instrument(p.instrument);
   const option = p.cls === 'option';
   // A token is marked at what its pool would pay for the whole position now, not at the price on the screen.
-  const pool = p.cls === 'meme' ? dexQuote(p.instrument)?.pool : undefined;
-  const mark = pool ? exitValue(pool, p.qty) / p.qty : (q?.last ?? p.entry);
+  const token = p.cls === 'meme';
+  const reading = token ? lastPool(p.instrument) : undefined;
+  // With no reading of the pool there is no mark, and so no P&L to show: not the entry dressed up as one.
+  const unmarked = token && !reading;
+  const mark = token ? (reading ? positionValue(reading.pool, p.qty, p.sellTax, p.sellBlocked !== undefined) / p.qty : p.entry) : (q?.last ?? p.entry);
   const u = unrealised(p, mark);
   const basis = p.mode === 'lev' && !option ? p.margin : p.entry * p.qty;
   const trade = account.trades.find((t) => t.id === p.tradeId);
@@ -78,9 +81,9 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
       </td>
       <td>{sizeText(p, p.entry)}</td>
       <td>{price(p.entry)}</td>
-      <td>{q ? price(mark) : '—'}</td>
-      <td className={tone}>{money(u, { signed: true })}</td>
-      <td className={tone}>{pct(basis > 0 ? (u / basis) * 100 : 0)}</td>
+      <td title={reading ? 'From the pool as read at ' + clock(reading.t) : undefined}>{token ? (reading ? price(mark) : '—') : q ? price(mark) : '—'}</td>
+      <td className={unmarked ? 'sub' : tone}>{unmarked ? '—' : money(u, { signed: true })}</td>
+      <td className={unmarked ? 'sub' : tone}>{unmarked ? '—' : pct(basis > 0 ? (u / basis) * 100 : 0)}</td>
       <td className={r !== undefined ? tone : 'sub'}>{rr(r)}</td>
       <td>{sl?.stop !== undefined ? price(sl.stop) : <span className="sub">—</span>}</td>
       <td>{tp?.limit !== undefined ? price(tp.limit) : <span className="sub">—</span>}</td>
@@ -112,7 +115,7 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
               Reverse
             </button>
           ) : null}
-          {option || p.cls === 'meme' ? null : (
+          {option || token ? null : (
           <button
             type="button"
             className="btn btn-sm"

@@ -85,8 +85,54 @@ export function exitValue(p: Pool, tokens: number): number {
   return t.dollars - t.fee;
 }
 
-/** The largest order the pool takes, in dollars. */
+/** The largest position the pool supports, in dollars at cost: 2% of its liquidity. */
 export const poolOrderCap = (p: Pool): number => POOL_ORDER_CAP * poolLiquidity(p);
+
+/** A pool with nothing in it: the liquidity has been pulled. Nothing can be bought, and a sale returns nothing. */
+export const emptyPool = (fee: number): Pool => ({ tokens: 0, dollars: 0, fee });
+export const isEmpty = (p: Pool): boolean => !(p.tokens > 0) || !(p.dollars > 0);
+
+/** True when the numbers describe a pool an order can be priced against (an empty one included). */
+export function validPool(p: Pool | undefined): p is Pool {
+  return p !== undefined && Number.isFinite(p.tokens) && Number.isFinite(p.dollars) && p.tokens >= 0 && p.dollars >= 0 && Number.isFinite(p.fee) && p.fee >= 0 && p.fee < 1;
+}
+
+// Paper orders do not move the real pool, so the account's own position is
+// treated as tokens it has already taken out of it. Buying more continues up
+// the curve from there, and selling comes back down it: splitting an order
+// into pieces costs, or returns, exactly what the whole would.
+
+/** What buying `qty` more costs when `held` are already held: dollars to the pool, before the fee. */
+export function addCost(p: Pool, held: number, qty: number): number {
+  return costToBuy(p, held + qty).dollars - (held > 0 ? costToBuy(p, held).dollars : 0);
+}
+
+/** How many tokens `spend` dollars (fee included) buys on top of `held`. */
+export function tokensFor(p: Pool, held: number, spend: number): number {
+  if (!(spend > 0) || isEmpty(p)) return 0;
+  const net = spend / (1 + p.fee);
+  const before = held > 0 ? costToBuy(p, held).dollars : 0;
+  if (!Number.isFinite(before)) return 0;
+  const total = before + net;
+  // costToBuy(n) = y·n / (x − n); solved for n.
+  return Math.max(0, (p.tokens * total) / (p.dollars + total) - held);
+}
+
+/** What selling `qty` out of `held` returns from the pool, before the fee: the last tokens out get the worst price. */
+export function sellProceeds(p: Pool, held: number, qty: number): number {
+  const part = Math.min(qty, held);
+  if (!(part > 0) || isEmpty(p)) return 0;
+  return sellToPool(p, held).dollars - (held - part > 0 ? sellToPool(p, held - part).dollars : 0);
+}
+
+/**
+ * What a position is worth: what selling all of it into the pool would return, after the pool fee and any
+ * tax the token's contract takes. Nothing, if holders can be stopped from selling.
+ */
+export function positionValue(p: Pool, qty: number, tax = 0, blocked = false): number {
+  if (blocked) return 0;
+  return Math.max(0, exitValue(p, qty) - sellToPool(p, qty).dollars * Math.min(1, Math.max(0, tax)));
+}
 
 /** A pool with this share, or less, of the liquidity it had when the position was opened counts as drained. */
 export const DRAINED_LEFT = 0.1;

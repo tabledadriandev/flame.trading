@@ -11,7 +11,7 @@ import {
   rulesFor,
   unrealised,
 } from './rules';
-import { costToBuy, isDrained, poolLiquidity, poolOrderCap, sellToPool, type Pool } from './pool';
+import { addCost, isDrained, isEmpty, poolLiquidity, poolOrderCap, sellProceeds, validPool, type Pool } from './pool';
 import {
   posKey,
   type Account,
@@ -53,6 +53,7 @@ interface Draft {
   /** The pool an on-chain token order is filling against, and any tax its contract takes from a sale. */
   pool?: Pool;
   sellTax?: number;
+  sellBlocked?: string;
 }
 
 function draft(a: Account, s: EngineSettings): Draft {
@@ -192,6 +193,8 @@ function openPosition(d: Draft, o: Order, qty: number, price: number, margin: nu
     openedAt: t,
     ...(o.option ? { option: o.option } : {}),
     ...(o.cls === 'meme' && d.pool ? { liquidity0: poolLiquidity(d.pool) } : {}),
+    ...(o.cls === 'meme' && d.sellBlocked ? { sellBlocked: d.sellBlocked } : {}),
+    ...(o.cls === 'meme' && d.sellTax ? { sellTax: d.sellTax } : {}),
   };
   putTrade(d, tr);
   return tr;
@@ -437,7 +440,15 @@ function execute(
   if (o.cls === 'option') return executeOption(d, o, qty, price, liquidity, t, away);
   const r = rulesFor(o.cls, d.s);
   // A token pays its pool's fee, and on a sale whatever tax its contract takes.
-  const rate = o.cls === 'meme' ? (d.pool?.fee ?? 0) + (o.side === 'sell' ? (d.sellTax ?? 0) : 0) : liquidity === 'maker' ? r.maker : liquidity === 'taker' ? r.taker : 0;
+  let rate = liquidity === 'maker' ? r.maker : liquidity === 'taker' ? r.taker : 0;
+  if (o.cls === 'meme') {
+    // Never priced without a pool: an order that got this far without one is refused, not filled for free.
+    if (!validPool(d.pool)) return { error: 'There is no reading of the pool to fill against.' };
+    const tax = o.side === 'sell' ? (d.sellTax ?? d.a.positions[posKey(o.instrument, o.mode)]?.sellTax ?? 0) : 0;
+    rate = Math.min(1, d.pool.fee + tax);
+    if (o.side === 'buy' && !(price > 0 && Number.isFinite(price))) return { error: 'The pool is empty: there is nothing to buy.' };
+    if (!(price >= 0) || !Number.isFinite(price)) return { error: 'The pool gave no usable price for this order.' };
+  }
   const key = posKey(o.instrument, o.mode);
   const pos = d.a.positions[key];
   const notional = qty * price;
@@ -448,6 +459,17 @@ function execute(
       if (notional + fee > d.a.cash + EPS) return { error: 'Not enough cash for this order.' };
       d.a.cash -= notional + fee;
       const tr = pos ? addToPosition(d, pos, o, qty, price, 0, fee) : openPosition(d, o, qty, price, 0, fee, t);
+      if (o.cls === 'meme' && pos && d.pool) {
+        // The liquidity a later drain is judged against is the average of what was there at each buy, by size.
+        const now = d.a.positions[key]!;
+        const was = pos.liquidity0 ?? poolLiquidity(d.pool);
+        d.a.positions[key] = {
+          ...now,
+          liquidity0: (was * pos.qty + poolLiquidity(d.pool) * qty) / (pos.qty + qty),
+          ...(d.sellBlocked ? { sellBlocked: d.sellBlocked } : {}),
+          ...(d.sellTax ? { sellTax: d.sellTax } : {}),
+        };
+      }
       return { fill: attach(d, tr, recordFill(d, o, tr.id, qty, price, fee, liquidity, t, away)) };
     }
     if (!pos || pos.qty < qty - EPS * Math.max(1, qty)) {
@@ -459,8 +481,9 @@ function execute(
     const sellFee = sell * price * rate;
     d.a.cash += sell * price - sellFee;
     let tr = reducePosition(d, pos, sell, price, (price - pos.entry) * sell, sellFee, t, { away });
-    // A token sold out of a pool that has lost nine tenths of its liquidity since the entry was rugged.
-    if (tr.closedAt !== undefined && pos.liquidity0 !== undefined && d.pool && isDrained(pos.liquidity0, poolLiquidity(d.pool))) {
+    // Any sale, whole or part, into a pool that has lost nine tenths of the liquidity it had when the
+    // position was bought marks the trade as rugged, and it stays marked.
+    if (!tr.rugged && pos.liquidity0 !== undefined && d.pool && isDrained(pos.liquidity0, poolLiquidity(d.pool))) {
       tr = { ...tr, rugged: true };
       putTrade(d, tr);
       d.events = d.events.map((e) => (e.type === 'closed' && e.trade.id === tr.id ? { ...e, trade: tr } : e));
@@ -594,9 +617,12 @@ function fillAtMarket(d: Draft, o: Order, q: Quote, away?: boolean): void {
     qty = Math.min(qty, free);
   }
   // A token fills against its pool: the price is whatever the constant-product curve gives for this size.
-  if (o.cls === 'meme' && q.pool) {
-    const trade = o.side === 'buy' ? costToBuy(q.pool, qty) : sellToPool(q.pool, qty);
-    fillOrder(d, o, qty, trade.price, 'taker', q.t, away);
+  if (o.cls === 'meme' && validPool(q.pool)) {
+    // The account's own position counts as tokens already taken out of the pool: a buy continues up the curve
+    // from there and a sale comes back down it, so splitting an order changes nothing.
+    const held = pos?.qty ?? 0;
+    const dollars = o.side === 'buy' ? addCost(q.pool, held, qty) : sellProceeds(q.pool, held, qty);
+    fillOrder(d, o, qty, qty > 0 ? dollars / qty : 0, 'taker', q.t, away);
     return;
   }
   // An option has no last trade worth filling at: a buy pays the ask and a sale gets the bid.
@@ -688,15 +714,19 @@ function validate(d: Draft, o: Order, q: Quote | undefined, t: number): string |
     if (o.mode !== 'spot') return 'Tokens trade spot only: no leverage and no shorting.';
     if (o.type !== 'market') return 'A pool has no order book to rest an order in: token orders fill at once, at the pool\'s price.';
     if (o.tp !== undefined || o.sl !== undefined) return 'Take-profit and stop-loss are not offered on tokens: nothing guarantees the pool will still be there.';
-    if (!q?.pool) return 'There is no fresh reading of the pool to fill against.';
+    if (!validPool(q?.pool)) return 'There is no fresh reading of the pool to fill against.';
+    const pool = q!.pool!;
+    const held = d.a.positions[posKey(o.instrument, 'spot')];
     if (o.side === 'buy') {
-      const cost = costToBuy(q.pool, o.qty).dollars;
-      const cap = poolOrderCap(q.pool);
-      if (!(cost <= cap * (1 + 1e-9))) {
-        return `One order may not be more than 2% of the pool's liquidity (${usd(cap)} here). A bigger position could not be sold back without moving the price against you.`;
+      if (isEmpty(pool)) return 'The pool is empty: its liquidity has been pulled, and there is nothing to buy.';
+      const position = addCost(pool, 0, (held?.qty ?? 0) + o.qty);
+      const cap = poolOrderCap(pool);
+      if (!(position <= cap * (1 + 1e-9))) {
+        return `A position may not be more than 2% of the pool's liquidity (${usd(cap)} here${held ? ', and you already hold some' : ''}). A bigger one could not be sold back without moving the price against you.`;
       }
-    } else if (q.sellBlocked) {
-      return `This sale would fail. ${q.sellBlocked}`;
+    } else {
+      const blocked = q!.sellBlocked ?? held?.sellBlocked;
+      if (blocked) return `This sale would fail. ${blocked}`;
     }
   }
   const r = rulesFor(o.cls, d.s);
@@ -737,6 +767,7 @@ export function placeOrder(a: Account, input: OrderInput, q: Quote | undefined, 
   d.ref = q?.underlying;
   if (q?.pool) d.pool = q.pool;
   if (q?.sellTax !== undefined) d.sellTax = q.sellTax;
+  if (q?.sellBlocked !== undefined) d.sellBlocked = q.sellBlocked;
   let o: Order = { ...input, id: nextId(d, 'o'), status: 'working', role: 'entry', createdAt: t };
   if (o.cls === 'option') {
     // The ticket says buy or sell; the engine works out whether that opens or closes. An order that closes a

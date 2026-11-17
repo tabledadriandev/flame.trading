@@ -41,7 +41,7 @@ async function load(chain: Chain, tab: Tab): Promise<PoolInfo[]> {
   if (tab === 'movers') {
     const [a, b] = await Promise.all([listPools(chain, 'trending'), listPools(chain, 'volume')]);
     return unique([...a, ...b])
-      .filter((p) => p.change.h1 !== null && p.liquidity >= 10_000)
+      .filter((p) => p.change.h1 !== null && p.liquidity !== null && p.liquidity >= 10_000)
       .sort((x, y) => Math.abs(y.change.h1!) - Math.abs(x.change.h1!));
   }
   // Drained: look through the recent pools for the ones that have already died.
@@ -77,7 +77,7 @@ function Row({ p, now, tab }: { p: PoolInfo; now: number; tab: Tab }) {
       <td className="lp-age">{p.createdAt !== null ? age(now - p.createdAt) : '—'}</td>
       <td>{tokenPrice(p.price)}</td>
       <td className="lp-cap">{p.marketCap !== null ? usd(p.marketCap) : '—'}</td>
-      <td>{usd(p.liquidity)}</td>
+      <td>{p.liquidity !== null ? usd(p.liquidity) : '—'}</td>
       <td className="lp-m5">{change(p.change.m5)}</td>
       <td className="lp-h1">{change(p.change.h1)}</td>
       <td>{change(p.change.h24)}</td>

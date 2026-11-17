@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ASSUMED_FEE, chainName, knownPool, parseDexId, poolReserves, poolTrades, type PoolTradeRow, type Reserves } from '../data/dex';
+import { ASSUMED_FEE, chainName, knownPool, parseDexId, poolProblem, poolReserves, poolTrades, type PoolTradeRow, type Reserves } from '../data/dex';
 import { instrument } from '../data/instruments';
 import { age, clock, compact, tokenPrice } from '../lib/format';
 import { useNow } from '../lib/hooks';
@@ -20,17 +20,29 @@ export function PoolPane() {
   const [reserves, setReserves] = useState<Reserves | null>(null);
   const [trades, setTrades] = useState<PoolTradeRow[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [reservesProblem, setReservesProblem] = useState<string | null>(null);
 
   useEffect(() => {
     setReserves(null);
     setTrades(null);
     setProblem(null);
+    setReservesProblem(null);
     if (!at) return;
     let alive = true;
     const read = () => {
       poolReserves(at.chain, at.address)
-        .then((r) => alive && setReserves(r))
-        .catch((err: unknown) => console.warn('[flame] pool reserves could not be read', err));
+        .then((r) => {
+          if (!alive) return;
+          setReserves(r);
+          setReservesProblem(r ? null : 'DexScreener does not list this pool, so its two sides are not shown.');
+        })
+        .catch((err: unknown) => {
+          console.warn('[flame] pool reserves could not be read', err);
+          if (!alive) return;
+          // Old reserves with no date on them would look current: show none, and say why.
+          setReserves(null);
+          setReservesProblem(err instanceof Error ? err.message : 'The two sides of the pool could not be read.');
+        });
       poolTrades(at.chain, at.address)
         .then((t) => {
           if (!alive) return;
@@ -56,7 +68,11 @@ export function PoolPane() {
   const symbol = pool?.symbol ?? instrument(id).symbol;
   const quote = pool?.quoteSymbol || 'quote asset';
   const stale = pool ? now - pool.t > 75_000 : false;
-  const curve = reserves?.labels.some((l) => /clmm|dlmm|v3|v4|cl/i.test(l)) ?? false;
+  // Whether the pool concentrates its liquidity is known only when DexScreener says what kind it is.
+  const curve = reserves ? reserves.labels.some((l) => /clmm|dlmm|v3|v4|cl/i.test(l)) : null;
+  const why = poolProblem(id);
+  const gone = pool !== undefined && pool.liquidity !== null && !(pool.liquidity > 0);
+  const dollarsText = (v: number | null): string => (v === null ? 'Not reported' : '$' + compact(v));
 
   return (
     <Pane
@@ -71,14 +87,19 @@ export function PoolPane() {
     >
       <div className="pane-body pool-body">
         {!pool ? (
-          <PaneState title="Reading the pool" />
+          <PaneState title="Reading the pool">{why ?? null}</PaneState>
         ) : (
           <>
-            {stale ? <p className="pool-stale">The pool was last read at {clock(pool.t)}. Orders wait for a fresh reading.</p> : null}
+            {stale ? (
+              <p className="pool-stale">
+                The pool was last read at {clock(pool.t)}. Orders wait for a fresh reading.{why ? ' ' + why : ''}
+              </p>
+            ) : null}
+            {gone ? <p className="pool-stale">The pool is empty: its liquidity has been pulled. Whoever holds this token cannot sell it for anything.</p> : null}
             <dl className="pool-facts num">
               <div>
                 <dt>Liquidity</dt>
-                <dd>${compact(pool.liquidity)}</dd>
+                <dd>{dollarsText(pool.liquidity)}</dd>
               </div>
               <div>
                 <dt>{symbol} in the pool</dt>
@@ -106,11 +127,14 @@ export function PoolPane() {
               </div>
               <div>
                 <dt>Volume, 24h</dt>
-                <dd>${compact(pool.volume24h)}</dd>
+                <dd>{dollarsText(pool.volume24h)}</dd>
               </div>
             </dl>
             <p className="pool-note">
-              {curve
+              {reservesProblem ? reservesProblem + ' ' : ''}
+              {curve === null
+                ? 'Orders are priced as if this were a simple constant-product pool of this size. Flame does not know what kind of pool it is, so for a large order that may be kinder than the real thing.'
+                : curve
                 ? 'This pool concentrates its liquidity in a price range. Flame prices orders as if the same dollars were spread evenly (a constant-product pool), which is close for small orders and kinder than the real thing for large ones.'
                 : 'Orders are priced on the constant-product curve: with x tokens and y dollars in the pool, spending Δy buys x·Δy ÷ (y + Δy) tokens.'}
               {pool.fee === null ? ' GeckoTerminal does not publish this pool’s fee, so 0.3% is assumed.' : ''}

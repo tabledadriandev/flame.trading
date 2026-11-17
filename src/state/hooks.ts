@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { valuation, type Valuation } from '../engine/engine';
 import type { Account } from '../engine/types';
-import { dexQuote } from '../data/dex';
-import { exitValue } from '../engine/pool';
+import { lastPool } from '../data/dex';
+import { positionValue } from '../engine/pool';
 import { useAccount, type Book } from './account';
 import { useMarket, type QuoteInfo } from './market';
 
@@ -13,8 +13,10 @@ function marksFor(a: Account): Record<string, number | undefined> {
     marks[p.instrument] = quotes[p.instrument]?.last;
     // A token is worth what its pool would pay for the whole position now, not the last price times the size.
     if (p.cls === 'meme') {
-      const pool = dexQuote(p.instrument)?.pool;
-      if (pool) marks[p.instrument] = exitValue(pool, p.qty) / p.qty;
+      // From the last reading of the pool, whatever its age, and never from the price on the screen: equity
+      // must not jump when a reading goes stale. With no reading at all the position stays at cost.
+      const reading = lastPool(p.instrument);
+      marks[p.instrument] = reading ? positionValue(reading.pool, p.qty, p.sellTax, p.sellBlocked !== undefined) / p.qty : undefined;
     }
   }
   return marks;
