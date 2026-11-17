@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react';
 // Views are addressed by a plain hash (#desk, #markets) so the app stays a
 // static single page and every view can be bookmarked.
 
-export const VIEWS = ['desk', 'markets', 'flow', 'odds', 'options', 'replay', 'lab', 'journal', 'news'] as const;
+export const VIEWS = ['desk', 'markets', 'flow', 'odds', 'launchpad', 'options', 'replay', 'lab', 'journal', 'news'] as const;
 export type ViewId = (typeof VIEWS)[number];
 
 function current(): ViewId {

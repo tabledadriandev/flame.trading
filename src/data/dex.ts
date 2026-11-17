@@ -118,20 +118,25 @@ export function poolFromGecko(chain: Chain, data: unknown, included: unknown, no
 /** GeckoTerminal allows 30 calls a minute from one address. Flame keeps under it and says so when it cannot. */
 const GECKO_PER_MINUTE = 24;
 let geckoCalls: number[] = [];
-const cache = new Map<string, { t: number; body: unknown }>();
-const inflight = new Map<string, Promise<unknown>>();
+/** An answer and when it was fetched. The time travels with the answer, so a cached reading is never passed off as new. */
+interface Answer {
+  body: unknown;
+  t: number;
+}
+const cache = new Map<string, Answer>();
+const inflight = new Map<string, Promise<Answer>>();
 
-async function getJson(url: string, source: string, maxAge: number): Promise<unknown> {
+async function getJson(url: string, source: string, maxAge: number): Promise<Answer> {
   const hit = cache.get(url);
-  if (hit && Date.now() - hit.t < maxAge) return hit.body;
+  if (hit && Date.now() - hit.t < maxAge) return hit;
   const running = inflight.get(url);
   if (running) return running;
   if (source === 'GeckoTerminal') {
     const now = Date.now();
     geckoCalls = geckoCalls.filter((t) => now - t < 60_000);
     if (geckoCalls.length >= GECKO_PER_MINUTE) {
-      // Rather than fail, show what was read last if there is anything.
-      if (hit) return hit.body;
+      // Rather than fail, show what was read last if there is anything: it keeps its own, older, time.
+      if (hit) return hit;
       throw new FeedError('GeckoTerminal allows 30 requests a minute and Flame has used them. Wait a moment and try again.', source, 429);
     }
     geckoCalls.push(now);
@@ -142,7 +147,9 @@ async function getJson(url: string, source: string, maxAge: number): Promise<unk
       r = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT) });
     } catch (err) {
       const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
-      throw new FeedError(`${source} ${timedOut ? 'took too long to answer' : 'could not be reached'}.`, source);
+      // A refusal for asking too often arrives without CORS headers, so the browser reports it as unreachable.
+      const limited = source === 'GeckoTerminal' ? ' It limits how often one address may ask (30 requests a minute): wait a few seconds and try again.' : '';
+      throw new FeedError(timedOut ? `${source} took too long to answer.` : `${source} could not be reached.${limited}`, source);
     }
     if (r.status === 429) throw new FeedError(`${source} is asking Flame to slow down. Try again in a minute.`, source, 429);
     if (r.status === 404) throw new FeedError(`${source} does not know that pool.`, source, 404);
@@ -150,9 +157,10 @@ async function getJson(url: string, source: string, maxAge: number): Promise<unk
     const body: unknown = await r.json().catch(() => {
       throw new FeedError(`${source} sent an answer Flame could not read.`, source);
     });
-    cache.set(url, { t: Date.now(), body });
+    const answer: Answer = { body, t: Date.now() };
+    cache.set(url, answer);
     if (cache.size > 200) cache.delete(cache.keys().next().value as string);
-    return body;
+    return answer;
   })();
   inflight.set(url, run);
   try {
@@ -170,12 +178,11 @@ const LIST_PATH: Record<PoolList, string> = {
   volume: 'pools?page=1&sort=h24_volume_usd_desc&include=base_token',
 };
 
-function poolsFrom(chain: Chain, body: unknown): PoolInfo[] {
+function poolsFrom(chain: Chain, { body, t }: Answer): PoolInfo[] {
   if (!isObj(body) || !Array.isArray(body.data)) throw new FeedError('GeckoTerminal sent a list Flame could not read.', 'GeckoTerminal');
-  const now = Date.now();
   const out: PoolInfo[] = [];
   for (const d of body.data) {
-    const p = poolFromGecko(chain, d, body.included, now);
+    const p = poolFromGecko(chain, d, body.included, t);
     if (p) {
       out.push(p);
       remember(p);
@@ -190,8 +197,8 @@ export async function listPools(chain: Chain, list: PoolList, page = 1): Promise
 }
 
 export async function fetchPool(chain: Chain, address: string): Promise<PoolInfo> {
-  const body = await getJson(`${GECKO}/networks/${chain}/pools/${address}?include=base_token`, 'GeckoTerminal', 15_000);
-  const p = isObj(body) ? poolFromGecko(chain, body.data, body.included, Date.now()) : null;
+  const { body, t } = await getJson(`${GECKO}/networks/${chain}/pools/${address}?include=base_token`, 'GeckoTerminal', 15_000);
+  const p = isObj(body) ? poolFromGecko(chain, body.data, body.included, t) : null;
   if (!p) throw new FeedError('GeckoTerminal has no usable price for this pool.', 'GeckoTerminal');
   remember(p);
   return p;
@@ -226,7 +233,7 @@ export async function poolCandles(chain: Chain, address: string, tf: Timeframe, 
   if (!g) throw new FeedError('Pool charts go up to daily bars.', 'GeckoTerminal');
   const params = new URLSearchParams({ aggregate: String(g.aggregate), limit: String(Math.min(1000, query.limit ?? 300)), currency: 'usd' });
   if (query.before !== undefined) params.set('before_timestamp', String(Math.floor(query.before / 1000)));
-  const bars = candlesFromGecko(await getJson(`${GECKO}/networks/${chain}/pools/${address}/ohlcv/${g.unit}?${params.toString()}`, 'GeckoTerminal', Math.min(20_000, tfMs(tf) / 2)));
+  const bars = candlesFromGecko((await getJson(`${GECKO}/networks/${chain}/pools/${address}/ohlcv/${g.unit}?${params.toString()}`, 'GeckoTerminal', Math.min(20_000, tfMs(tf) / 2))).body);
   return query.from !== undefined ? bars.filter((b) => b.t >= query.from!) : bars;
 }
 
@@ -240,7 +247,7 @@ export interface PoolTradeRow {
 
 /** The largest recent trades in a pool. */
 export async function poolTrades(chain: Chain, address: string): Promise<PoolTradeRow[]> {
-  const body = await getJson(`${GECKO}/networks/${chain}/pools/${address}/trades`, 'GeckoTerminal', 30_000);
+  const { body } = await getJson(`${GECKO}/networks/${chain}/pools/${address}/trades`, 'GeckoTerminal', 30_000);
   if (!isObj(body) || !Array.isArray(body.data)) throw new FeedError('GeckoTerminal sent trades Flame could not read.', 'GeckoTerminal');
   const rows: PoolTradeRow[] = [];
   for (const d of body.data) {
@@ -268,7 +275,7 @@ export interface Reserves {
 /** Both sides of the pool, from DexScreener. Null when it does not list the pair. */
 export async function poolReserves(chain: Chain, address: string): Promise<Reserves | null> {
   const ds = CHAINS.find((c) => c.id === chain)!.dexscreener;
-  const body = await getJson(`${DEXSCREENER}/latest/dex/pairs/${ds}/${address}`, 'DexScreener', 30_000);
+  const { body } = await getJson(`${DEXSCREENER}/latest/dex/pairs/${ds}/${address}`, 'DexScreener', 30_000);
   const pair = isObj(body) && isObj(body.pair) ? body.pair : null;
   const liq = pair && isObj(pair.liquidity) ? pair.liquidity : null;
   const base = liq ? n(liq.base) : null;
@@ -319,7 +326,7 @@ const risks = new Map<string, RiskReport | null>();
 /** The contract risk report for a pool's token. Null where there is no source: every chain but Solana. */
 export async function riskReport(pool: Pick<PoolInfo, 'chain' | 'token' | 'id'>): Promise<RiskReport | null> {
   if (pool.chain !== 'solana' || !pool.token) return null;
-  const body = await getJson(`${RUGCHECK}/tokens/${pool.token}/report/summary`, 'RugCheck', 300_000);
+  const { body } = await getJson(`${RUGCHECK}/tokens/${pool.token}/report/summary`, 'RugCheck', 300_000);
   const report = riskFromRugcheck(body);
   risks.set(pool.id, report);
   return report;
@@ -375,7 +382,10 @@ const pools = new Map<string, PoolInfo>();
 const onKnown = new Set<(p: PoolInfo) => void>();
 
 function remember(p: PoolInfo): void {
-  pools.set(p.id, p);
+  // A list read a moment ago must not replace a newer reading of the same pool.
+  const had = pools.get(p.id);
+  if (had && had.t > p.t) return;
+  pools.set(p.id, had && had.fee !== null && p.fee === null ? { ...p, fee: had.fee, lockedPct: p.lockedPct ?? had.lockedPct } : p);
   for (const cb of onKnown) cb(p);
 }
 
@@ -387,11 +397,12 @@ export function onPool(cb: (p: PoolInfo) => void): Unsubscribe {
 
 export const knownPool = (id: string): PoolInfo | undefined => pools.get(id);
 
-/** How old a pool reading may be and still be traded against. */
-const FRESH = 60_000;
+/** How old a pool reading may be and still be traded against: two missed polls. */
+const FRESH = 75_000;
 /** Used only where GeckoTerminal does not publish the pool's fee; the pane says it is assumed. */
 export const ASSUMED_FEE = 0.003;
-const POLL = 20_000;
+/** GeckoTerminal's allowance is small, so a pool is read every half minute, not streamed. */
+const POLL = 30_000;
 
 export function enginePool(p: PoolInfo): Pool | null {
   return poolFrom(p.liquidity, p.price, p.fee ?? ASSUMED_FEE);
@@ -457,7 +468,7 @@ class DexAdapter implements VenueAdapter {
       poolCandles(chain, address, tf, { limit: 3 })
         .then((bars) => bars.forEach(on))
         .catch((err: unknown) => console.warn(`[flame] pool candles for ${symbol} could not be refreshed`, err));
-    const timer = setInterval(() => void poll(), Math.max(POLL, Math.min(60_000, tfMs(tf) / 2)));
+    const timer = setInterval(() => void poll(), Math.max(60_000, Math.min(300_000, tfMs(tf) / 2)));
     return () => clearInterval(timer);
   }
 

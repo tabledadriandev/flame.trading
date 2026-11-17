@@ -206,7 +206,7 @@ export async function remove(key: string): Promise<void> {
   unreadable.delete(key);
 }
 
-export const KEYS = ['account', 'settings', 'watchlists', 'layout', 'levels', 'odds'] as const;
+export const KEYS = ['account', 'settings', 'watchlists', 'layout', 'levels', 'odds', 'tokens'] as const;
 export type StoreKey = (typeof KEYS)[number];
 
 export interface Backup {

@@ -95,7 +95,14 @@ function oddsProblem(d: unknown): string | null {
   return ok ? null : 'A prediction-market note is not valid.';
 }
 
+function tokensProblem(d: unknown): string | null {
+  if (!isObj(d)) return 'The token names are not valid.';
+  const ok = Object.entries(d).every(([id, m]) => /^dex:[a-z]+:[A-Za-z0-9]{20,80}$/.test(id) && isObj(m) && str(m.symbol) && str(m.name) && str(m.quote) && str(m.token));
+  return ok ? null : 'A token name is not valid.';
+}
+
 const CHECKS: Record<string, (d: unknown) => string | null> = {
+  tokens: tokensProblem,
   account: accountProblem,
   watchlists: watchlistsProblem,
   settings: settingsProblem,

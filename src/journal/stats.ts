@@ -253,7 +253,7 @@ const esc = (v: string | number | undefined | null): string => {
 
 /** Every closed trade as CSV, one row each. */
 export function tradesCsv(all: TradeRec[], symbolOf: (id: string) => string = (id) => id): string {
-  const head = ['id', 'instrument', 'mode', 'side', 'opened', 'closed', 'duration_seconds', 'size', 'entry', 'exit', 'gross', 'fees', 'funding', 'pnl', 'initial_risk', 'r', 'mae', 'mfe', 'liquidated', 'filled_while_away', 'setup', 'emotion', 'followed_plan', 'note'];
+  const head = ['id', 'instrument', 'mode', 'side', 'opened', 'closed', 'duration_seconds', 'size', 'entry', 'exit', 'gross', 'fees', 'funding', 'pnl', 'initial_risk', 'r', 'mae', 'mfe', 'liquidated', 'rugged', 'filled_while_away', 'setup', 'emotion', 'followed_plan', 'note'];
   const rows = closed(all).map((t) =>
     [
       t.id,
@@ -275,6 +275,7 @@ export function tradesCsv(all: TradeRec[], symbolOf: (id: string) => string = (i
       t.mae.toFixed(2),
       t.mfe.toFixed(2),
       t.liquidated ? 'yes' : 'no',
+      t.rugged ? 'yes' : 'no',
       t.away ? 'yes' : 'no',
       t.review?.setup ?? '',
       t.review?.emotion ?? '',

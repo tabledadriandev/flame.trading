@@ -1,20 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import {
-  ChartCandlestick,
-  FlaskConical,
-  Globe,
-  History,
-  Moon,
-  Newspaper,
-  NotebookPen,
-  Percent,
-  Search,
-  Settings as SettingsIcon,
-  Sun,
-  Waves,
-  WifiOff,
-  type LucideIcon,
-} from 'lucide-react';
+import { ChartCandlestick, FlaskConical, Globe, History, Moon, Newspaper, NotebookPen, Percent, Rocket, Search, Settings as SettingsIcon, Sun, Waves, WifiOff, type LucideIcon } from 'lucide-react';
 import { Mark } from './Mark';
 import type { ViewId } from '../lib/route';
 import { readTheme, resolvedTheme, writeTheme } from '../lib/theme';
@@ -57,6 +42,7 @@ export const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
   { id: 'markets', label: 'Markets', icon: Globe },
   { id: 'flow', label: 'Flow', icon: Waves },
   { id: 'odds', label: 'Odds', icon: Percent },
+  { id: 'launchpad', label: 'Launch', icon: Rocket },
   { id: 'replay', label: 'Replay', icon: History },
   { id: 'lab', label: 'Lab', icon: FlaskConical },
   { id: 'journal', label: 'Journal', icon: NotebookPen },
@@ -65,7 +51,9 @@ export const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
 
 /** Views that are reached from another view, not from the rail, still need a name. */
 const OFF_RAIL: Partial<Record<ViewId, string>> = { options: 'Options' };
-const viewLabel = (view: ViewId): string => NAV.find((n) => n.id === view)?.label ?? OFF_RAIL[view] ?? 'Desk';
+/** The rail has room for a short word; the page itself says the whole name. */
+const FULL: Partial<Record<ViewId, string>> = { launchpad: 'Launchpad' };
+const viewLabel = (view: ViewId): string => FULL[view] ?? NAV.find((n) => n.id === view)?.label ?? OFF_RAIL[view] ?? 'Desk';
 
 export function Shell({ view, children }: { view: ViewId; children: ReactNode }) {
   const [theme, setTheme] = useState(() => resolvedTheme(readTheme()));

@@ -49,7 +49,10 @@ async function load(chain: Chain, tab: Tab): Promise<PoolInfo[]> {
   return unique(pages.flat()).filter((p) => drainedWhy(p) !== null);
 }
 
-const change = (v: number | null) => (v === null ? <span className="sub">—</span> : <span className={v >= 0 ? 'hot' : 'cold'}>{pct(v, true, Math.abs(v) >= 100 ? 0 : 1)}</span>);
+/** Dollars in thousands and millions; under a dollar is nothing. */
+const usd = (v: number): string => (v < 1 ? '$0' : `$${compact(v)}`);
+
+const change = (v: number | null) => (v === null ? <span className="sub">—</span> : <span className={v > 0 ? 'hot' : v < 0 ? 'cold' : undefined}>{pct(v, true, Math.abs(v) >= 100 ? 0 : 1)}</span>);
 
 function Row({ p, now, tab }: { p: PoolInfo; now: number; tab: Tab }) {
   const read = poolRead(p, now);
@@ -73,8 +76,8 @@ function Row({ p, now, tab }: { p: PoolInfo; now: number; tab: Tab }) {
       <td className="l lp-chain">{chainName(p.chain)}</td>
       <td className="lp-age">{p.createdAt !== null ? age(now - p.createdAt) : '—'}</td>
       <td>{tokenPrice(p.price)}</td>
-      <td className="lp-cap">{p.marketCap !== null ? `$${compact(p.marketCap)}` : '—'}</td>
-      <td>{`$${compact(p.liquidity)}`}</td>
+      <td className="lp-cap">{p.marketCap !== null ? usd(p.marketCap) : '—'}</td>
+      <td>{usd(p.liquidity)}</td>
       <td className="lp-m5">{change(p.change.m5)}</td>
       <td className="lp-h1">{change(p.change.h1)}</td>
       <td>{change(p.change.h24)}</td>
@@ -111,7 +114,8 @@ export function Launchpad() {
       .then((list) => {
         if (want.current !== key) return;
         setRows(list);
-        setReadAt(Date.now());
+        // The time on the list is when its oldest reading was fetched, not when it was drawn.
+        setReadAt(list.length > 0 ? Math.min(...list.map((p) => p.t)) : Date.now());
         setError(null);
       })
       .catch((err: unknown) => {

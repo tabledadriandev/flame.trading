@@ -21,8 +21,9 @@ What it must feel like: one desk you can live in. Fast, quiet, keyboard-friendly
 | Indices, rates, commodities | S&P 500, VIX, long Treasuries, gold, crude | Not in the stock feed. Shown and traded through the ETF that tracks each (SPY, VIXY, TLT, GLD, USO) | As stocks |
 | Prediction markets | Polymarket events | Server proxy | Buy and sell Yes/No shares priced 0–100¢ |
 | Crypto options | BTC and ETH calls and puts | Deribit, direct from the browser | Buy; sell only when covered (see the rules) |
+| On-chain tokens | New and trending pools on Solana, Base, BSC and Ethereum | GeckoTerminal, DexScreener and RugCheck, direct from the browser, read every 30 seconds | Spot only, in dollars, against the pool |
 
-An instrument has one id (`crypto:BTC`, `stock:SPY`, `poly:<token-id>`, `opt:deribit:BTC-25JUN27-88000-C`), a display symbol, a name, a class, a price precision and a tradable flag. Panes take an instrument id and never care where the data comes from.
+An instrument has one id (`crypto:BTC`, `stock:SPY`, `poly:<token-id>`, `opt:deribit:BTC-25JUN27-88000-C`, `dex:solana:<pool address>`), a display symbol, a name, a class, a price precision and a tradable flag. Panes take an instrument id and never care where the data comes from.
 
 Delayed data is labelled "Delayed" next to the price, always.
 
@@ -97,6 +98,14 @@ A full-screen version of the order-flow tools:
 ### Odds
 Prediction markets by topic, each as a card: question, leading outcomes with probabilities, change this week, volume, time left. A market page shows the probability history and a simple ticket (buy Yes or No in dollars; shares = dollars ÷ price). Positions settle at $1 or $0 when the market resolves, or can be sold at the current bid.
 
+### Launchpad
+In the rail. New and moving on-chain tokens, to teach four things: most new tokens go to zero; liquidity decides whether you can get out; price impact is a cost; a contract can stop you selling.
+
+- **Lists.** New, Trending, Movers (the biggest moves over the last hour among busy pools), Volume, and Drained (recent pools whose liquidity has gone or whose price has fallen 90% in a day). A chain filter: Solana, Base, BSC, Ethereum. A standing line at the top says what the Drained tab is there to prove.
+- **Rows.** Token, chain, age, price, market cap, liquidity, change over 5 minutes, 1 hour and 24 hours, trades in 24 hours, and a risk read. The risk read is Flame's own, from the pool's age, size and trading, said in words; it is labelled as not being a contract check. Narrow windows drop columns; none scrolls sideways.
+- **A token on the desk.** The chart is the pool's own candles. The Book and Tape give way to a **Pool** pane: liquidity, both reserves, the pool fee, the locked share, the largest recent trades, and how orders are priced. The ticket is in dollars only: it shows the tokens and price the pool would give, the price impact in percent and in dollars, the pool fee, and what selling straight back would return; then Flame's read of the pool and, on Solana, the RugCheck report. If the report says holders can be stopped from selling, or that sales are taxed, that is shown before the buy.
+- With the simulated feed the view says it is not shown.
+
 ### Options
 Reached from the desk ticket ("Options" beside Spot and Perp, on BTC and ETH), from the palette, or with `G` then `P`. Not in the rail.
 
@@ -166,6 +175,14 @@ These are the engine's contract. Each line needs a test.
 - At expiry every option settles in cash at what it is worth: `max(0, underlying − strike)` for a call, `max(0, strike − underlying)` for a put, times the size. A covered call that finishes in the money is paid in cash; if the cash is short, enough of the shares behind that call are sold at the settlement price to pay what it owes, and the notice says how many. Real stock options settle in shares and can be assigned early; Flame does neither, and says so.
 - Expiry is checked at start and once a minute, and settles at the venue's own settlement price for that expiry (Deribit's delivery price), so an option that expired while Flame was closed settles at the price of that moment.
 - Not offered in Replay.
+
+**On-chain tokens** (`src/engine/meme.test.ts` and `pool.test.ts` have a test for each line)
+- Spot only: no leverage and no shorting. Market orders only: a pool has no book to rest an order in. No stops or targets.
+- Fills come from the pool, not a book. With x tokens and y dollars in the pool, spending Δy buys x·Δy ÷ (y + Δy) tokens; selling is the mirror. The pool's fee is charged on top of a buy and out of a sale. Paper orders do not move the real pool.
+- One order may not be more than 2% of the pool's liquidity. The refusal says a bigger position could not be sold back.
+- A position is marked at what the pool would pay for the whole of it now, less the fee, not at the price on the screen. A drained pool therefore marks it near zero, and a position sold after the pool has lost nine tenths of the liquidity it had at entry is tagged "rugged" in the journal.
+- If the risk source says holders can be stopped from selling, a paper sale fails with the reason. If it reports a tax on transfers, the tax comes out of what a sale returns.
+- An order needs a reading of the pool less than 75 seconds old.
 
 **Fees**
 - Crypto: 0.05% taker, 0.02% maker. Stocks: none. Prediction markets: none. Configurable in settings.

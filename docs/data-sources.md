@@ -117,6 +117,29 @@ BTC and ETH options. No key. The browser calls Deribit itself; nothing goes thro
 - **Fees** (Deribit's fee page, read 17 November 2026, standard tier): 3 basis points of the underlying per contract for maker and taker alike, never more than 12.5% of the premium; at expiry 1.5 basis points, with the same cap, and nothing on daily expiries (any option that does not expire on a Friday).
 - **Not verified:** how Deribit rate-limits unauthenticated REST calls from one address (no limit was hit), and what its terms say about showing its prices on a public site. Raise the second with Adrian before announcing.
 
+## On-chain tokens: GeckoTerminal, DexScreener, RugCheck, direct from the browser (verified 17 November 2026)
+
+No key for any of them, and all three answer a browser with `access-control-allow-origin: *`, so nothing goes through `/api`: each visitor uses their own allowance, which is what the limits are written for. `src/data/dex.ts`. All three hosts are in `connect-src`.
+
+| What | Call | What came back |
+|---|---|---|
+| New pools | `GET https://api.geckoterminal.com/api/v2/networks/{network}/new_pools?page=1&include=base_token` | 20 pools a page. Per pool: `address`, `name` ("GTA6 / SOL"), `base_token_price_usd`, `reserve_in_usd` (both sides, in dollars), `fdv_usd`, `market_cap_usd` (often null), `pool_created_at`, `price_change_percentage` (m5 to h24), `transactions` (buys and sells per window), `volume_usd`. The token's name and symbol come in `included` |
+| Trending pools | `…/networks/{network}/trending_pools?page=1&include=base_token` | Same shape |
+| By volume | `…/networks/{network}/pools?page=1&sort=h24_volume_usd_desc&include=base_token` | Same shape |
+| One pool | `…/networks/{network}/pools/{address}?include=base_token` | Adds `pool_fee_percentage` and `locked_liquidity_percentage`; both can be null |
+| Candles | `…/pools/{address}/ohlcv/{minute\|hour\|day}?aggregate=&limit=&before_timestamp=&currency=usd` | `ohlcv_list` of `[seconds, open, high, low, close, volume in dollars]`, newest first. No weekly bars |
+| Trades | `…/pools/{address}/trades` | `kind` (buy or sell), `volume_in_usd`, prices, `block_timestamp` |
+| Both reserves | `GET https://api.dexscreener.com/latest/dex/pairs/{chain}/{address}` | `liquidity: {base, quote, usd}`, and `labels` naming the pool type (`DLMM`, `v3`, …) |
+| Contract risk, Solana | `GET https://api.rugcheck.xyz/v1/tokens/{mint}/report/summary` | `risks: [{name, value, description, level: warn or danger}]`, `score_normalised` (0 to 100, higher is riskier), `lpLockedPct`. The full report (`…/report`) is 600 kB and is not used |
+
+- **Networks:** `solana`, `base`, `bsc`, `eth` on GeckoTerminal; DexScreener calls the last one `ethereum`.
+- **Limits:** GeckoTerminal allows 30 calls a minute from one address. Flame counts its own calls, stops at 24 a minute, caches answers for 15 to 30 seconds, shares requests in flight, and reads a pool every 30 seconds. A refusal for asking too often arrives without CORS headers, so the browser can only report it as "could not be reached"; the message says the limit is the likely reason. Seen once while testing; a retry a few seconds later worked. DexScreener documents 300 a minute on pair endpoints. RugCheck's limit is not published.
+- **Attribution:** GeckoTerminal asks for a link back. Launchpad and the Pool pane name and link GeckoTerminal, DexScreener and RugCheck wherever their data appears.
+- **What a pool reading is not:** a stream. The desk says "Delayed" and the Pool pane says how often it is read. An order waits for a reading less than 75 seconds old.
+- **Pool maths:** GeckoTerminal gives the pool's total dollars, not the curve. Flame treats every pool as constant-product with half the dollars on each side. That is exact for classic pools and an approximation for concentrated ones (DLMM, v3), which the Pool pane says when DexScreener labels the pool that way.
+- **Risk:** RugCheck covers Solana only. A risk whose name mentions freezing is read as "holders can be stopped from selling"; one that names a transfer fee or tax with a percentage is read as a tax on sales. No source was verified for the other chains, and the ticket says there is no contract check there.
+- **Not verified:** each source's terms for showing its data on a public site. Raise with Adrian before announcing.
+
 ## Stocks, ETFs, indices, rates, commodities: through `/api`
 
 ### Status on 17 November 2026: built for Alpaca, never called for real

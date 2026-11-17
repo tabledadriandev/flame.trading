@@ -1,0 +1,235 @@
+/* Launchpad, the Pool pane and the token ticket. Chrome is ash; hue only
+   marks a price going up or down and the buy and sell sides of a trade. */
+
+.launchpad {
+  min-height: 100%;
+  background: var(--surface);
+  container-type: inline-size;
+}
+
+.lp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.lp-asof {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.lp-tabs {
+  height: 36px;
+  padding: 0 var(--s-3);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.lp-tabs .tab {
+  flex: none;
+}
+
+.lp-about {
+  max-width: 82ch;
+  margin: 0;
+  padding: var(--s-2) var(--s-4);
+  color: var(--ink-2);
+}
+
+.lp-table td {
+  height: 30px;
+}
+
+.lp-token {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lp-name {
+  font-stretch: var(--w-ui);
+}
+
+.lp-risk {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Risk is said in words and weight, not in a colour. */
+.lp-risk strong[data-level='lower'] {
+  font-weight: 400;
+}
+
+.lp-credit {
+  max-width: 82ch;
+  margin: 0;
+  padding: var(--s-3) var(--s-4) var(--s-4);
+}
+
+@container (max-width: 1080px) {
+  .lp-table .lp-m5,
+  .lp-table .lp-trades,
+  .lp-table .lp-chain {
+    display: none;
+  }
+}
+
+@container (max-width: 860px) {
+  .lp-table .lp-cap,
+  .lp-table .lp-h1,
+  .lp-table .lp-name {
+    display: none;
+  }
+
+  .lp-risk .sub {
+    display: none;
+  }
+}
+
+@container (max-width: 520px) {
+  .lp-table .lp-age {
+    display: none;
+  }
+
+  .lp-table td {
+    height: 40px;
+  }
+}
+
+/* ---------- The Pool pane ---------- */
+
+.pool-body {
+  overflow-y: auto;
+  padding: var(--s-2) var(--s-3) var(--s-3);
+}
+
+.pool-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2) var(--s-3);
+  margin: 0;
+}
+
+.pool-facts dt {
+  color: var(--ink-2);
+  font-size: var(--t-12);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pool-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.pool-note {
+  margin: var(--s-2) 0 0;
+  color: var(--ink-2);
+  font-size: var(--t-12);
+  line-height: 1.45;
+}
+
+.pool-stale {
+  margin: 0 0 var(--s-2);
+  padding: var(--s-2) 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-control);
+  font-weight: 600;
+}
+
+.pool-sub {
+  margin: var(--s-3) 0 var(--s-1);
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.pool-trades {
+  margin: 0 calc(-1 * var(--s-3));
+  width: calc(100% + 2 * var(--s-3));
+}
+
+.pool-trades th {
+  position: static;
+}
+
+/* ---------- The token ticket ---------- */
+
+.meme-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  overflow-y: auto;
+}
+
+/* The ticket scrolls; its parts keep their own height and never squeeze into each other. */
+.meme-ticket > * {
+  flex: none;
+}
+
+.meme-ticket .ticket-preview {
+  min-height: 0;
+}
+
+/* The pool takes the whole column: there is no tape beneath it. */
+.book-col > .pane-pool {
+  flex: 1 1 0;
+}
+
+.pane-pool {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pane-pool > .pool-body {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.meme-ticket .ticket-preview p,
+.meme-risk p {
+  margin: 0;
+}
+
+.meme-ticket .ticket-preview p + p,
+.meme-risk p + p {
+  margin-top: 4px;
+}
+
+.meme-held {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--t-12);
+  line-height: 1.45;
+}
+
+.meme-risk {
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line);
+  line-height: 1.45;
+}
+
+.meme-risk .pool-sub {
+  margin-top: 0;
+}
+
+.meme-warn {
+  padding: var(--s-2) 10px;
+  border: 1px solid var(--ink);
+  border-radius: var(--r-control);
+}
+
+.meme-risks {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0;
+  padding-left: 18px;
+  color: var(--ink-2);
+  font-size: var(--t-12);
+}

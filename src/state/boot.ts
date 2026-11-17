@@ -7,6 +7,7 @@ import { SIM } from '../lib/env';
 import { startLive, stopLive } from './live';
 import { startFunding, stopFunding } from './funding';
 import { startExpiry, stopExpiry } from './options';
+import { startTokens, useTokens, type TokenMeta } from './tokens';
 import { useMarket } from './market';
 import { flush, freezeSaves, load, persistent, setSaveErrorHandler } from './persist';
 import { useSettings, type Settings } from './settings';
@@ -87,6 +88,9 @@ export async function boot(): Promise<void> {
   const odds = await load<Record<string, OddsMeta>>('odds');
   if (odds.ok) useOdds.getState().hydrate(odds.data);
   startSettlement();
+  const tokens = await load<Record<string, TokenMeta>>('tokens');
+  if (tokens.ok) useTokens.getState().hydrate(tokens.data);
+  startTokens();
 
   if (settings.ok) useSettings.getState().hydrate(settings.data);
   else useSettings.getState().hydrate(undefined);

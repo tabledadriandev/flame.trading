@@ -512,7 +512,8 @@ function attach(d: Draft, tr: TradeRec, fill: Fill): Fill {
 function upsertBrackets(d: Draft, key: string, tp: number | null | undefined, sl: number | null | undefined, t: number): void {
   const pos = d.a.positions[key];
   // Options carry no stops here: an option's price moves with time and volatility as well as the underlying.
-  if (!pos || pos.cls === 'option') return;
+  // Nor do tokens: nothing guarantees the pool will be there for a stop to sell into.
+  if (!pos || pos.cls === 'option' || pos.cls === 'meme') return;
   const mine = d.a.orders.filter(
     (o) => isWorking(o) && o.instrument === pos.instrument && o.mode === pos.mode && o.role !== 'entry',
   );

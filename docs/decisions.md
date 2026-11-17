@@ -150,3 +150,23 @@ A review for silent failures, run after the first options commit was live, found
 - **ETH options trade in whole contracts** (Deribit's `min_trade_amount`); only BTC trades in tenths.
 - Shares sold at settlement, orders cancelled at expiry, and orders refused during the catch-up are all announced.
 
+## On-chain tokens (17 November 2026)
+
+**Every pool is priced as constant-product with half its dollars on each side.** GeckoTerminal publishes a pool's total value, not its curve. For a classic pool this is exact. For a concentrated pool it understates the impact of a large order, so the Pool pane says so when DexScreener labels the pool that way. The brief asks for the constant-product curve; pricing each pool type exactly would need its on-chain state.
+
+**Paper orders do not move the real pool.** So selling straight after buying meets the same curve again and pays the impact twice. The ticket's "sold straight back" figure and the mark after a fill both say this; it is harsher than a real round trip made alone in an empty block, and about right for one made in a busy pool.
+
+**The pool fee is charged on top of a buy and out of a sale**, like every other fee in the engine, instead of being taken from the input as a real pool does. The difference is the fee squared.
+
+**"Rugged" means the pool had a tenth or less of its entry liquidity when the position was sold.** A token nobody sells is never closed, so it stays an open position marked near zero, which is how it would sit in a real wallet.
+
+**A token that RugCheck says can be frozen cannot be sold in Flame.** RugCheck reports the capability, not that anyone has used it. The brief asks for the sale to fail, and the point of the lesson is that the buyer cannot know which it will be; the ticket says before the buy that this is what Flame will do, and why.
+
+**Flame's own risk read is words, from pool facts only**, and is labelled as not being a contract check. Only Solana has a contract report; the other chains say there is none.
+
+**The Drained tab is found, not fetched.** No source lists drained pools. Flame reads the three newest pages of pools and the trending list and keeps those with under $1,000 left after real volume, or down 90% in a day.
+
+**Pools are read by each visitor's browser, not through `/api`.** GeckoTerminal's 30 calls a minute is per address; through one server every visitor would share one allowance.
+
+**Launchpad is "Launch" in the rail** so nine items fit a phone's bottom bar; the page and its title say Launchpad.
+

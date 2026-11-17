@@ -86,8 +86,8 @@ Adrian asked for options, memecoins, stocks and "everything", and for a better f
 - [x] `src/options/bs.ts`: Black-Scholes price, greeks and implied-volatility solver, tested against Hull's textbook values and against Deribit's own greeks for a live contract
 - [x] Engine: option positions (long, covered call, cash-secured put, defined-risk spreads), cash settlement at expiry, fees. A test for every rule in the brief (`src/engine/options.test.ts`). The stock-option fee default waits for stock options
 - [x] Crypto options from Deribit: public API and CORS verified, adapter, chain view, ticket, payoff chart, position greeks (`#options`)
-- [ ] Engine: pool fills on the constant-product curve, the 2% of liquidity cap, marking at what the pool would pay, the "rugged" tag
-- [ ] Memecoins: verify DexScreener, GeckoTerminal and a risk source; Launchpad view; token on the desk with the Pool pane
+- [x] Engine: pool fills on the constant-product curve, the 2% of liquidity cap, marking at what the pool would pay, the "rugged" tag, blocked and taxed sales. A test for every rule (`src/engine/pool.test.ts`, `meme.test.ts`)
+- [x] Memecoins: GeckoTerminal, DexScreener and RugCheck verified from a browser; Launchpad view in the rail; a token on the desk with the Pool pane and a dollars-only ticket
 - [ ] Stocks and ETFs live through Alpaca behind the existing `/api/quote` shape. **Needs `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` in Vercel, which Adrian adds himself.** The upstream is written (`api/_lib/alpaca.ts`) but unverified; still to do once the key exists: one real call, the "IEX" and "Delayed 15 min" labels, in-flight request coalescing, and serving the cached value marked stale when the budget is spent
 - [ ] Markets boards filled with labelled ETF proxies for indices, commodities, rates and currencies (the index and commodity boards exist and wait on the key; rates and currency proxies are not added yet); real currency pairs if a Twelve Data key is added
 - [ ] Stock and ETF options on Alpaca's indicative feed

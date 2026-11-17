@@ -24,7 +24,7 @@ import {
   type Result,
   type Review,
 } from '../engine/types';
-import { dollars, money, qty, rr } from '../lib/format';
+import { dollars, money, qty, rr, tokenPrice } from '../lib/format';
 import { parseOptionId } from '../options/contract';
 import { lastPrice } from './clock';
 import { save } from './persist';
@@ -196,7 +196,7 @@ function describe(e: EngineEvent & { type: 'fill' }): string {
   const i = instrument(e.fill.instrument);
   const verb = e.fill.side === 'buy' ? 'Bought' : 'Sold';
   // A prediction-market share is priced in cents; everything else in dollars.
-  const at = i.cls === 'odds' ? `${(e.fill.price * 100).toFixed(1)}¢` : dollars(e.fill.price);
+  const at = i.cls === 'odds' ? `${(e.fill.price * 100).toFixed(1)}¢` : i.cls === 'meme' ? tokenPrice(e.fill.price) : dollars(e.fill.price);
   // An option is counted in contracts, not in the shares or coins it covers.
   const spec = i.cls === 'option' ? parseOptionId(i.id) : null;
   const size = spec ? `${Math.round((e.fill.qty / spec.multiplier) * 1000) / 1000} ×` : qty(e.fill.qty, e.fill.price);
@@ -222,7 +222,7 @@ function announce(events: EngineEvent[], book: Book): void {
     } else if (e.type === 'closed') {
       const i = instrument(e.trade.instrument);
       const r = e.trade.r !== undefined ? ` (${rr(e.trade.r)})` : '';
-      toast(`${tag}${i.symbol} ${e.trade.dir} closed: ${money(e.trade.pnl, { signed: true })}${r}`);
+      toast(`${tag}${i.symbol} ${e.trade.dir} closed: ${money(e.trade.pnl, { signed: true })}${r}${e.trade.rugged ? '. The pool was drained while you held it: this one was a rug.' : ''}`, e.trade.rugged ? { sticky: true } : undefined);
     }
   }
 }

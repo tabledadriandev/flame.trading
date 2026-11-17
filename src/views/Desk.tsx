@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Book } from '../desk/Book';
+import { MemeTicket } from '../desk/MemeTicket';
+import { PoolPane } from '../desk/PoolPane';
+import { instrument } from '../data/instruments';
 import { ChartPane } from '../desk/ChartPane';
 import { Drawer } from '../desk/Drawer';
 import { Tape } from '../desk/Tape';
@@ -32,6 +35,8 @@ function WideDesk() {
   const zen = useLayout((s) => s.zen);
   const maximised = useLayout((s) => (s.zen ? 'chart' : s.maximised));
   const [col, colSize] = useSize<HTMLDivElement>();
+  // An on-chain token has a pool, not a book and a tape, and a ticket of its own.
+  const token = useMarket((s) => instrument(s.instrument).cls === 'meme');
   return (
     <div
       className="desk"
@@ -51,18 +56,24 @@ function WideDesk() {
       <Watchlist />
       <ChartPane onReplay={replayFrom} />
       <div className="book-col" ref={col}>
-        <Book />
-        <Divider
-          axis="y"
-          className="divider-inline"
-          label="Resize the book and the tape"
-          value={sizes.ladder}
-          scale={colSize.height > 0 ? 1 / colSize.height : 0.002}
-          onChange={(v) => setSize('ladder', v)}
-        />
-        <Tape />
+        {token ? (
+          <PoolPane />
+        ) : (
+          <>
+            <Book />
+            <Divider
+              axis="y"
+              className="divider-inline"
+              label="Resize the book and the tape"
+              value={sizes.ladder}
+              scale={colSize.height > 0 ? 1 / colSize.height : 0.002}
+              onChange={(v) => setSize('ladder', v)}
+            />
+            <Tape />
+          </>
+        )}
       </div>
-      <Ticket />
+      {token ? <MemeTicket /> : <Ticket />}
       <Drawer />
       <Divider axis="x" className="div-watch" label="Resize the watchlist" value={sizes.watch} onChange={(v) => setSize('watch', v)} />
       <Divider axis="x" className="div-book" label="Resize the book" value={sizes.book} direction={-1} onChange={(v) => setSize('book', v)} />
@@ -84,6 +95,7 @@ function PhoneDesk() {
   const [page, setPage] = useState(0);
   const pages = useRef<HTMLDivElement>(null);
   const focus = useTicket((s) => s.focus);
+  const token = useMarket((s) => instrument(s.instrument).cls === 'meme');
 
   const go = (n: number) => {
     const el = pages.current;
@@ -105,7 +117,7 @@ function PhoneDesk() {
       <div className="phone-tabs" role="tablist" aria-label="Desk panes">
         {PAGES.map((p, n) => (
           <button key={p.id} type="button" role="tab" className="phone-tab" aria-selected={page === n} onClick={() => go(n)}>
-            {p.label}
+            {p.id === 'book' && token ? 'Pool' : p.label}
           </button>
         ))}
       </div>
@@ -122,11 +134,17 @@ function PhoneDesk() {
           <ChartPane onReplay={replayFrom} />
         </div>
         <div className="phone-page" role="tabpanel" aria-label="Ticket">
-          <Ticket />
+          {token ? <MemeTicket /> : <Ticket />}
         </div>
-        <div className="phone-page phone-page-book" role="tabpanel" aria-label="Book">
-          <Book />
-          <Tape />
+        <div className="phone-page phone-page-book" role="tabpanel" aria-label={token ? 'Pool' : 'Book'}>
+          {token ? (
+            <PoolPane />
+          ) : (
+            <>
+              <Book />
+              <Tape />
+            </>
+          )}
         </div>
         <div className="phone-page" role="tabpanel" aria-label="Positions">
           <Drawer />

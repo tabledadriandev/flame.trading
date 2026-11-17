@@ -25,6 +25,7 @@ export function TradeResult({ t }: { t: TradeRec }) {
       {t.r !== undefined ? <span className={tone}> {rr(t.r)}</span> : null}
       {feesMatter ? <span className="sub"> ({rr(gross)} before fees of {money(t.fees)})</span> : null}
       {t.liquidated ? <span className="sub"> liquidated</span> : null}
+      {t.rugged ? <span className="sub"> rugged</span> : null}
       {t.away ? <span className="sub"> while away</span> : null}
     </span>
   );

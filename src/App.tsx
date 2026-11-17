@@ -7,6 +7,7 @@ import { Journal } from './views/Journal';
 import { Replay } from './views/Replay';
 import { Lab } from './views/Lab';
 import { Odds } from './views/Odds';
+import { Launchpad } from './views/Launchpad';
 import { Options } from './views/Options';
 import { News } from './views/News';
 import { Flow } from './views/Flow';
@@ -88,7 +89,7 @@ export function App() {
   if (loadError) return <LoadFailed error={loadError} />;
   return (
     <Shell view={view}>
-      {!ready ? <PaneState title="Opening your account" /> : view === 'desk' ? <Desk /> : view === 'markets' ? <Markets /> : view === 'journal' ? <Journal /> : view === 'replay' ? <Replay /> : view === 'lab' ? <Lab /> : view === 'odds' ? <Odds /> : view === 'news' ? <News /> : view === 'flow' ? <Flow /> : view === 'options' ? <Options /> : null}
+      {!ready ? <PaneState title="Opening your account" /> : view === 'desk' ? <Desk /> : view === 'markets' ? <Markets /> : view === 'journal' ? <Journal /> : view === 'replay' ? <Replay /> : view === 'lab' ? <Lab /> : view === 'odds' ? <Odds /> : view === 'news' ? <News /> : view === 'flow' ? <Flow /> : view === 'options' ? <Options /> : view === 'launchpad' ? <Launchpad /> : null}
     </Shell>
   );
 }

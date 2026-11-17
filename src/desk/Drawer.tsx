@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ToReview } from './Review';
+import { dexQuote } from '../data/dex';
 import { instrument } from '../data/instruments';
+import { exitValue } from '../engine/pool';
 import { bracketsFor, workingOrders } from '../engine/engine';
 import { effectiveLeverage, positionLiquidationPrice, rulesFor, unrealised } from '../engine/rules';
 import type { Fill, Order, Position } from '../engine/types';
@@ -39,7 +41,9 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
   const q = replay ? quote(p.instrument) : liveQuote;
   const i = instrument(p.instrument);
   const option = p.cls === 'option';
-  const mark = q?.last ?? p.entry;
+  // A token is marked at what its pool would pay for the whole position now, not at the price on the screen.
+  const pool = p.cls === 'meme' ? dexQuote(p.instrument)?.pool : undefined;
+  const mark = pool ? exitValue(pool, p.qty) / p.qty : (q?.last ?? p.entry);
   const u = unrealised(p, mark);
   const basis = p.mode === 'lev' && !option ? p.margin : p.entry * p.qty;
   const trade = account.trades.find((t) => t.id === p.tradeId);
@@ -108,7 +112,7 @@ function PositionRow({ p, book, quote, replay }: { p: Position; book: Book; quot
               Reverse
             </button>
           ) : null}
-          {option ? null : (
+          {option || p.cls === 'meme' ? null : (
           <button
             type="button"
             className="btn btn-sm"
