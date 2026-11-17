@@ -141,8 +141,11 @@ export function marketOf(m: GammaMarket): OddsMarket | null {
 export function eventOf(e: GammaEvent, keep = 6): OddsEvent | null {
   if (!e.id || !e.title) return null;
   const all = (e.markets ?? []).map(marketOf).filter((m): m is OddsMarket => m !== null);
-  const open = all.filter((m) => !m.closed);
+  let open = all.filter((m) => !m.closed);
   if (open.length === 0) return null;
+  // Events are created with placeholder outcomes ("Candidate T") that nobody has traded: priced at exactly 50% with no volume. Leave them out when real ones exist.
+  const real = open.filter((m) => !(m.volume24h === 0 && m.outcomes[0]!.price === 0.5 && (m.bestBid === null || m.bestBid <= 0.01)));
+  if (real.length > 0) open = real;
   open.sort((a, b) => b.outcomes[0]!.price - a.outcomes[0]!.price || b.volume24h - a.volume24h);
   return {
     id: String(e.id),

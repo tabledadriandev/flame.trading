@@ -260,7 +260,17 @@ export function ChartPane({ onReplay }: { onReplay?: (t: number) => void }) {
               onNeedOlder={feed.loadOlder}
               onAxisClick={(p, alt) => {
                 useLevels.getState().add(id, p, alt, useMarket.getState().quotes[id]?.last);
-                toast(alt ? `Alert set at ${dollars(p)}. Flame will tell you when ${i.symbol} crosses it.` : `Level added at ${dollars(p)}. Drag its tag to move it.`);
+                if (!alt) {
+                  toast(`Level added at ${dollars(p)}. Drag its tag to move it.`);
+                } else if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                  // The alert always shows inside Flame; a system notification needs the browser's permission, asked for on a click.
+                  toast(`Alert set at ${dollars(p)}. Flame will tell you here when ${i.symbol} crosses it.`, {
+                    sticky: true,
+                    action: { label: 'Also notify me outside Flame', run: () => void Notification.requestPermission().catch((err: unknown) => console.warn('[flame] notification permission failed', err)) },
+                  });
+                } else {
+                  toast(`Alert set at ${dollars(p)}. Flame will tell you when ${i.symbol} crosses it.`);
+                }
               }}
               onContext={(t, x, y) => (anchoring ? anchorAt(t) : setMenu({ t, x, y }))}
               onBarClick={anchoring ? anchorAt : undefined}

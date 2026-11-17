@@ -2,11 +2,13 @@ import { Shell } from './shell/Shell';
 import { useView } from './lib/route';
 import { useAccount } from './state/account';
 import { Desk } from './views/Desk';
-import { Plan } from './views/Plan';
 import { Markets } from './views/Markets';
 import { Journal } from './views/Journal';
 import { Replay } from './views/Replay';
 import { Lab } from './views/Lab';
+import { Odds } from './views/Odds';
+import { News } from './views/News';
+import { Flow } from './views/Flow';
 import { PaneState } from './ui/controls';
 import { exportBackup, remove } from './state/persist';
 import { takeOver } from './state/boot';
@@ -85,7 +87,7 @@ export function App() {
   if (loadError) return <LoadFailed error={loadError} />;
   return (
     <Shell view={view}>
-      {!ready ? <PaneState title="Opening your account" /> : view === 'desk' ? <Desk /> : view === 'markets' ? <Markets /> : view === 'journal' ? <Journal /> : view === 'replay' ? <Replay /> : view === 'lab' ? <Lab /> : <Plan view={view} />}
+      {!ready ? <PaneState title="Opening your account" /> : view === 'desk' ? <Desk /> : view === 'markets' ? <Markets /> : view === 'journal' ? <Journal /> : view === 'replay' ? <Replay /> : view === 'lab' ? <Lab /> : view === 'odds' ? <Odds /> : view === 'news' ? <News /> : view === 'flow' ? <Flow /> : null}
     </Shell>
   );
 }

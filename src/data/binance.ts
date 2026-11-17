@@ -344,6 +344,13 @@ export class BinanceAdapter implements VenueAdapter {
     });
   }
 
+  /** The last 1,000 aggregate trades (a minute or two of BTC), oldest first. */
+  async recentTrades(symbol: string): Promise<Tick[]> {
+    const rows = await rest<{ p: string; q: string; T: number; m: boolean }[]>(`/api/v3/aggTrades?symbol=${symbol}&limit=1000`);
+    if (!Array.isArray(rows)) throw new FeedError('Binance sent trades in a shape Flame does not know.', 'binance');
+    return rows.map((d) => ({ t: d.T, p: +d.p, q: +d.q, side: d.m ? ('sell' as const) : ('buy' as const) }));
+  }
+
   subscribeBook(symbol: string, on: (b: BookSnapshot) => void, onProblem?: (message: string | null) => void): Unsubscribe {
     let book = this.books.get(symbol);
     let stop: Unsubscribe | null = null;

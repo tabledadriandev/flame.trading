@@ -7,6 +7,7 @@ import { exportBackup, importBackup } from '../state/persist';
 import { DEFAULTS, useSettings, type Convention } from '../state/settings';
 import { toast } from '../state/toasts';
 import { Dialog, Help, NumField, Segmented } from '../ui/controls';
+import { DISCLAIMER } from './Intro';
 
 export function download(name: string, text: string, type: string): void {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -198,6 +199,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
               Reset the paper account
             </button>
           )}
+        </section>
+        <section>
+          <h3>About</h3>
+          <p>{DISCLAIMER}</p>
+          <p>Charts are drawn with TradingView's Lightweight Charts. Prices: Binance and six other exchanges for coins, Alpaca for stocks, Polymarket for prediction markets, Hyperliquid for funding.</p>
         </section>
       </div>
     </Dialog>

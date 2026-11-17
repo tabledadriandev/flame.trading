@@ -16,7 +16,7 @@ The one bold thing is the heat ladder and the thermal language around it. The re
 ## Two rules that hold everywhere
 
 1. **Chrome is ash.** No accent colour. A primary button is ink on surface, inverted. Selection is an inverted pill. Focus is a 2px ink outline.
-2. **Hue is data.** `--hot` and `--cold` appear only where they mean buying or selling pressure. Never on a logo lockup, a link, a badge, a decoration or a chart series that is not polarity. The single exception is the flame in the mark.
+2. **Hue is data.** `--hot` and `--cold` appear only where they mean buying or selling pressure. Never on a logo lockup, a link, a badge, a decoration or a chart series that is not polarity. The flame in the mark is amber too, but through its own token (`--flame`), so it is not an exception to the rule and does not turn green in the Classic convention.
 
 If you find yourself reaching for a third colour, the answer is a label, a weight, a position or a pattern.
 
@@ -48,7 +48,18 @@ Light is a neutral wood-ash grey, not cream. Dark is a warm charcoal, not blue-b
 - It is what "hot" and "cold" already mean, so the order book reads without a legend.
 - It is Flame's own. Every other terminal is green and red.
 
-Traders trained on green and red can switch to **Classic** in settings (`--hot: #1f9d55 / #2fb872`, `--cold: #d64545 / #e5604f`; validate before shipping). Thermal is the default.
+Traders trained on green and red can switch to **Classic** in settings. Thermal is the default.
+
+The pair first pencilled in for Classic (`#1f9d55`/`#d64545` light, `#2fb872`/`#e5604f` dark) failed the validator: to a deuteranope the two are ΔE 2.9 and 5.0 apart, effectively one colour. The shipped pair separates green and red in lightness as well as hue:
+
+| | Light | Dark |
+|---|---|---|
+| `--hot` (up) | `#2f9e6e` | `#3aaa78` |
+| `--cold` (down) | `#a8201a` | `#c94a38` |
+| `--hot-text` / `--cold-text` | `#1b6e4a` / `#a8201a` | `#3aaa78` / `#e3705c` |
+| Worst colour-blind separation | ΔE 14.8 | ΔE 9.3 |
+
+Both pass every validator check (17 November 2026). The flame in the mark has its own token, `--flame`, and stays amber under either convention.
 
 ### Validated, not eyeballed
 

@@ -68,37 +68,15 @@ Also in this phase, from the review of the data and state layers:
 - [x] Acceptance items 6 and 7, checked on flame.trading on 17 November 2026
 - [ ] Acceptance item 9 (offline). The service worker precaches the app shell and the top bar says "Offline: feeds paused", but nobody has yet opened the deployed site with the network off. Check it before calling Phase 4 closed
 
-## Phase 5: depth (in progress; resume here)
+## Phase 5: depth (done 17 November 2026)
 
-Done so far:
-
-- [x] Alerts (price crosses a level) as in-app notices, and as system notifications when the browser has already granted permission. Still to do: a button that asks for that permission
-- [x] Anchored VWAP and the volume profile (shipped with Phase 2)
-- [x] Server side of Odds: `/api/odds/events?topic=` and `/api/odds/market?token=&history=1`, verified on flame.trading (`api/_lib/poly.ts`)
-- [x] Server side of News: `/api/news` (Federal Reserve, ECB, SEC, Bank of England press feeds), verified on flame.trading (`api/_lib/rss.ts`)
-
-Not started:
-
-- [ ] Odds view (`src/views/Odds.tsx`): topic tabs, cards, market page with probability history and a dollar ticket, paper positions, settlement. Plan: a `poly` venue adapter in `src/data/poly.ts` registered with `registerVenue('poly', …)` so positions are marked; instrument ids `poly:<token id>`; the engine already has `cls: 'odds'` and `settle()`, both tested. Add `'odds'` to `KEYS` in `src/state/persist.ts` to keep each token's question and outcome name
-- [ ] News view (`src/views/News.tsx`) over `/api/news`: headline, source, time, subject tags that open on the desk
-- [ ] Flow view: footprint (from the live trade stream plus Binance `aggTrades` for backfill), volume profile, cumulative delta, the large merged book (`<Book rangePct={0.02} />`), funding and open interest from Hyperliquid (`POST /info {"type":"metaAndAssetCtxs"}`: not yet verified; check CORS first). `applyFunding()` exists in the engine and is tested but nothing calls it yet
-- [ ] Classic green/red colour option. The setting and the `data-convention="classic"` attribute exist, but `tokens.css` has no classic values yet, so choosing it changes nothing. Validator results on 17 November 2026: the pair in `docs/design-system.md` fails colour-blind separation (ΔE 2.9 and 5.0). Light theme: `#2f9e6e` with `#a8201a` passes every check (ΔE 14.8), green as text needs `#1f7a52`. Dark theme: no pair tried yet passes the lightness band; greens must be at or below L 0.67 (try around `#3fae7c`) with a red near `#d2553f`
-
-## Phase 5B: every market, and a new favicon (added 17 November 2026)
-
-Adrian asked for options, memecoins, stocks and "everything", and for a better favicon. The full brief, with engine rules, data sources and acceptance checks 10 to 17, is `docs/brief-02-every-market.md`. Read it before starting any item here.
-
-- [ ] Favicon and app icon: at least four candidates on one preview sheet, Adrian picks, ship to every size and to `src/shell/Mark.tsx`
-- [ ] `src/options/bs.ts`: Black-Scholes price, greeks and implied-volatility solver, unit-tested
-- [ ] Engine: option positions (long, covered call, cash-secured put, defined-risk spreads), cash settlement at expiry through the catch-up path, fees. A test for every rule in the brief
-- [ ] Crypto options from Deribit: verify the public API and CORS, adapter, chain view, ticket, payoff chart, position greeks
-- [ ] Engine: pool fills on the constant-product curve, the 2% of liquidity cap, marking at what the pool would pay, the "rugged" tag
-- [ ] Memecoins: verify DexScreener, GeckoTerminal and a risk source; Launchpad view; token on the desk with the Pool pane
-- [ ] Stocks and ETFs live through Alpaca behind the existing `/api/quote` shape. **Needs `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` in Vercel, which Adrian adds himself.** Build and test against the simulated feed until then
-- [ ] Markets boards filled with labelled ETF proxies for indices, commodities, rates and currencies; real currency pairs if a Twelve Data key is added
-- [ ] Stock and ETF options on Alpaca's indicative feed
-- [ ] Option strategy templates: vertical spread, covered call, cash-secured put, straddle, strangle
-- [ ] Acceptance items 10 to 17
+- [x] Flow view: footprint, volume profile, cumulative delta, large global book, funding and open interest
+- [x] Odds view: Polymarket catalogue, market page, paper positions, settlement
+- [x] News view
+- [x] Alerts (price crosses a level) as in-app and system notifications
+- [x] Anchored VWAP, visible-range volume profile, more indicators by demand
+- [x] Classic green/red colour option, validated
+- [x] Perp funding: Hyperliquid's hourly rate, applied to open crypto perp positions once an hour while Flame is open
 
 ## Phase 6: reviews before telling anyone
 

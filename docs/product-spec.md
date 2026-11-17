@@ -17,11 +17,11 @@ What it must feel like: one desk you can live in. Fast, quiet, keyboard-friendly
 | Class | Examples | Live source | Trading modes |
 |---|---|---|---|
 | Crypto | BTC, ETH, SOL and the top ~40 USD pairs by volume | Exchange WebSockets, direct from the browser | Spot; Perp (long/short, 1–20× leverage) |
-| Stocks and ETFs | AAPL, NVDA, SPY, QQQ | Server proxy (delayed) | Spot; Margin (long/short, 1–2×) |
-| Indices, rates, commodities | S&P 500, VIX, 10-year yield, gold, crude | Server proxy (delayed) | Chart only. Offer the matching ETF or future to trade |
+| Stocks and ETFs | AAPL, NVDA, SPY, QQQ | Server proxy to Alpaca, 15 minutes delayed | Spot; Margin (long/short, 1–2×) |
+| Indices, rates, commodities | S&P 500, VIX, long Treasuries, gold, crude | Not in the stock feed. Shown and traded through the ETF that tracks each (SPY, VIXY, TLT, GLD, USO) | As stocks |
 | Prediction markets | Polymarket events | Server proxy | Buy and sell Yes/No shares priced 0–100¢ |
 
-An instrument has one id (`crypto:BTC`, `yahoo:SPY`, `poly:<market-id>`), a display symbol, a name, a class, a price precision and a tradable flag. Panes take an instrument id and never care where the data comes from.
+An instrument has one id (`crypto:BTC`, `stock:SPY`, `poly:<token-id>`), a display symbol, a name, a class, a price precision and a tradable flag. Panes take an instrument id and never care where the data comes from.
 
 Delayed data is labelled "Delayed" next to the price, always.
 

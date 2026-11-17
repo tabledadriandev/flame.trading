@@ -78,6 +78,10 @@ export interface VenueAdapter {
   /** `onProblem` hears why the book is not syncing (null once it is), so the pane can say so. */
   subscribeBook(symbol: string, on: (b: BookSnapshot) => void, onProblem?: (message: string | null) => void): Unsubscribe;
   subscribeTicker(symbol: string, on: (t: Ticker) => void): Unsubscribe;
+  /** The most recent trades, for views that need history before the stream (the footprint). */
+  recentTrades?(symbol: string): Promise<Tick[]>;
+  /** For venues with their own two-sided price (a prediction market's book): what an order fills against. */
+  quote?(symbol: string): import('../engine/types').Quote | undefined;
   status(): FeedStatus;
   onStatus(cb: (s: FeedStatus) => void): Unsubscribe;
 }

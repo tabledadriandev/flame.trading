@@ -29,6 +29,7 @@ import { useMarket } from '../state/market';
 import { useLayout } from '../state/layout';
 import { Palette } from './Palette';
 import { Settings } from './Settings';
+import { Intro } from './Intro';
 import { useGlobalKeys } from './keys';
 
 function AccountBadge() {
@@ -132,6 +133,7 @@ export function Shell({ view, children }: { view: ViewId; children: ReactNode })
         {children}
       </main>
       <Palette />
+      <Intro />
       {settings ? <Settings onClose={() => setSettings(false)} /> : null}
       <Toasts />
     </div>

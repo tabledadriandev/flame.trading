@@ -1,6 +1,7 @@
 import { SIM } from '../lib/env';
 import { BinanceAdapter } from './binance';
 import { SimAdapter } from './sim';
+import { poly } from './poly';
 import { stocks } from './stocks';
 import type { VenueAdapter } from './types';
 
@@ -8,7 +9,10 @@ import type { VenueAdapter } from './types';
 
 const binance = new BinanceAdapter();
 const sim = new SimAdapter();
-const extra = new Map<string, VenueAdapter>([['stock', stocks]]);
+const extra = new Map<string, VenueAdapter>([
+  ['stock', stocks],
+  ['poly', poly],
+]);
 
 /** Later phases register the stock and prediction-market adapters here. */
 export function registerVenue(prefix: string, adapter: VenueAdapter): void {

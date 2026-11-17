@@ -73,3 +73,25 @@ Notable choices made while building Flame, newest last. Each has the reason, so 
 **Settings is a dialog behind a gear in the top bar,** not a ninth view: it is visited rarely and should not take a place in the rail.
 
 **Sounds default to off and are one short tick on a fill.** Nothing else makes a sound.
+
+**Stocks come from Alpaca, 15 minutes delayed, by Adrian's choice (17 November 2026).** Alpaca's free plan allows consolidated-tape data once it is 15 minutes old. The proxy asks for bars ending 16 minutes ago and takes the quote from the last bar, so chart and quote always agree and the "Delayed" label is exactly true. Only `data.alpaca.markets` is called; the trading API is never touched.
+
+**Indices, bonds, gold and oil appear as their ETFs.** Alpaca carries US-listed stocks and ETFs, not indices, futures or currencies. The Markets boards show SPY, QQQ, DIA, IWM, VIXY, TLT, GLD and USO, each named for the market it tracks. That is also the thing a learner would actually trade.
+
+**Stock search confirms exact tickers only.** Alpaca's data API has no search by company name, and its asset list lives on the trading API, which Flame does not call. Names are searched over the built-in list; any other ticker typed exactly is checked against the feed and added.
+
+**Stock instrument ids are `stock:SPY`,** not `yahoo:SPY`: the id should not name a source Flame no longer uses.
+
+**Prediction-market fills walk the outcome's own book.** The spec said best ask to buy and best bid to sell. Walking the book is the same for small orders and more honest for large ones in thin markets.
+
+**Placeholder outcomes are hidden.** Polymarket creates events with unnamed slots ("Candidate T") priced at exactly 50% with no trades. A card that led with four of those read as nonsense.
+
+**News is four institutions' press feeds, all primary sources:** the Federal Reserve, the ECB, the SEC and the Bank of England. Links are kept only when they are https and on the institution's own domain. No news publisher's feed is used, because none was checked for terms that allow it.
+
+**Flame's perps borrow Hyperliquid's funding rate.** Its perps are priced on Binance spot and have no funding of their own. Once an hour, an open crypto perp pays or receives Hyperliquid's hourly rate for that coin. Hours that pass while Flame is closed are not charged, and a coin Hyperliquid does not list pays none; the Flow view says which applies.
+
+**The footprint starts from the last 1,000 trades.** Exchanges do not publish trade-by-trade history in bulk for free, so the footprint is built from Binance's most recent aggregate trades plus the live stream from the moment the view opens.
+
+**Classic colours were re-chosen with the validator.** The pair in the design document failed: a deuteranope sees them 2.9 apart on a scale where 8 is the target. The shipped pair differs in lightness as well as hue (see `docs/design-system.md`).
+
+**The flame in the mark has its own token.** Otherwise the logo turned green in Classic.

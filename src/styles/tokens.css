@@ -29,6 +29,8 @@
   /* The hues on an inverted (ink) surface, such as the glyph on a selected Buy or Sell pill. */
   --hot-on-ink: #dd7418;
   --cold-on-ink: #3d8ce3;
+  /* The flame in the mark. It is the brand, not data, so it does not change with the colour convention. */
+  --flame: #c2570a;
 
   /* Type: one family, three widths. Width encodes density. */
   --font: 'Archivo Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -95,6 +97,7 @@
     --cold-text: #3d8ce3;
     --hot-on-ink: #a04606;
     --cold-on-ink: #1a5fb6;
+    --flame: #dd7418;
   }
 }
 
@@ -115,4 +118,47 @@
   --cold-text: #3d8ce3;
   --hot-on-ink: #a04606;
   --cold-on-ink: #1a5fb6;
+  --flame: #dd7418;
+}
+
+/*
+  Classic: green for up, red for down, for traders trained on that pair.
+  Chosen with the dataviz validator, not by eye: most greens and reds are
+  indistinguishable to deuteranopes (the pair first proposed scored ΔE 2.9).
+  These keep the hues apart in lightness, so they stay distinct (light ΔE 14.8,
+  dark ΔE 9.3; target ≥ 8). Every use still carries a sign, an arrow or a word.
+*/
+:root[data-convention='classic'] {
+  --hot: #2f9e6e;
+  --cold: #a8201a;
+  --hot-wash: rgb(47 158 110 / 0.14);
+  --cold-wash: rgb(168 32 26 / 0.12);
+  --hot-text: #1b6e4a;
+  --cold-text: #a8201a;
+  --hot-on-ink: #3aaa78;
+  --cold-on-ink: #e3705c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-convention='classic']:not([data-theme='light']) {
+    --hot: #3aaa78;
+    --cold: #c94a38;
+    --hot-wash: rgb(58 170 120 / 0.16);
+    --cold-wash: rgb(201 74 56 / 0.18);
+    --hot-text: #3aaa78;
+    --cold-text: #e3705c;
+    --hot-on-ink: #1b6e4a;
+    --cold-on-ink: #a8201a;
+  }
+}
+
+:root[data-convention='classic'][data-theme='dark'] {
+  --hot: #3aaa78;
+  --cold: #c94a38;
+  --hot-wash: rgb(58 170 120 / 0.16);
+  --cold-wash: rgb(201 74 56 / 0.18);
+  --hot-text: #3aaa78;
+  --cold-text: #e3705c;
+  --hot-on-ink: #1b6e4a;
+  --cold-on-ink: #a8201a;
 }

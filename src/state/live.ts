@@ -120,6 +120,10 @@ export function quoteFor(id: string): Quote | undefined {
       return { bid, ask, last, t: now, book: { bids: deskBook.bids.slice(0, 500), asks: deskBook.asks.slice(0, 500) } };
     }
   }
+  // A venue with its own two-sided price (a prediction market) fills against that.
+  const r = route(id);
+  const own = r?.adapter.quote?.(r.symbol);
+  if (own) return own;
   if (!info || isStale(info, now)) return undefined;
   return { bid: info.last, ask: info.last, last: info.last, t: now, ...(info.open !== undefined ? { open: info.open } : {}) };
 }

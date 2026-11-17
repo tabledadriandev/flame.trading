@@ -188,7 +188,9 @@ export function saveHeartbeat(): void {
 function describe(e: EngineEvent & { type: 'fill' }): string {
   const i = instrument(e.fill.instrument);
   const verb = e.fill.side === 'buy' ? 'Bought' : 'Sold';
-  const what = `${qty(e.fill.qty, e.fill.price)} ${i.symbol} at ${dollars(e.fill.price)}`;
+  // A prediction-market share is priced in cents; everything else in dollars.
+  const at = i.cls === 'odds' ? `${(e.fill.price * 100).toFixed(1)}¢` : dollars(e.fill.price);
+  const what = `${qty(e.fill.qty, e.fill.price)} ${i.symbol} at ${at}`;
   return e.fill.away ? `Filled while away: ${verb.toLowerCase()} ${what}` : `${verb} ${what}`;
 }
 

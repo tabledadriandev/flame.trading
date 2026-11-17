@@ -5,6 +5,7 @@ import { seedClock } from './clock';
 import { setFrameErrorHandler } from '../data/schedule';
 import { SIM } from '../lib/env';
 import { startLive, stopLive } from './live';
+import { startFunding, stopFunding } from './funding';
 import { useMarket } from './market';
 import { flush, freezeSaves, load, persistent, setSaveErrorHandler } from './persist';
 import { useSettings, type Settings } from './settings';
@@ -13,6 +14,7 @@ import { useWatchlists, type Watchlist } from './watchlists';
 import { useLayout, type LayoutDoc } from './layout';
 import { useIndicators } from './indicators';
 import { useLevels, type Level } from './levels';
+import { startSettlement, useOdds, type OddsMeta } from './odds';
 
 const LOCK = SIM ? 'flame-account-sim' : 'flame-account';
 const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(LOCK);
@@ -40,6 +42,7 @@ function claimAccount(): Promise<boolean> {
               freezeSaves();
               // Stand down completely: no feeds, no engine, nothing saved from here on.
               stopLive();
+              stopFunding();
               useAccount.setState({ elsewhere: true });
               release();
             });
@@ -79,6 +82,9 @@ export async function boot(): Promise<void> {
   ]);
   const levels = await load<Record<string, Level[]>>('levels');
   if (levels.ok) useLevels.getState().hydrate(levels.data);
+  const odds = await load<Record<string, OddsMeta>>('odds');
+  if (odds.ok) useOdds.getState().hydrate(odds.data);
+  startSettlement();
 
   if (settings.ok) useSettings.getState().hydrate(settings.data);
   else useSettings.getState().hydrate(undefined);
@@ -117,5 +123,8 @@ export async function boot(): Promise<void> {
     toast('A price update could not be processed. If prices or orders look wrong, reload the page.', { sticky: true });
   });
 
-  if (account.ok) startLive();
+  if (account.ok) {
+    startLive();
+    startFunding();
+  }
 }
