@@ -13,6 +13,8 @@ export class ProxyError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** The status the upstream source answered with, when it answered. */
+    readonly upstreamStatus?: number,
   ) {
     super(message);
   }
@@ -41,6 +43,8 @@ export interface Upstream {
   timeoutMs?: number;
   accept?: string;
   userAgent?: string;
+  /** Extra request headers, such as a data key. Never logged. */
+  headers?: Record<string, string>;
 }
 
 /** GET an upstream URL and return its body as text. Throws ProxyError with a status fit to pass on. */
@@ -48,7 +52,7 @@ export async function fetchText(up: Upstream): Promise<string> {
   let r: Response;
   try {
     r = await fetch(up.url, {
-      headers: { 'User-Agent': up.userAgent ?? UA, Accept: up.accept ?? 'application/json', 'Accept-Language': 'en-US,en;q=0.9' },
+      headers: { 'User-Agent': up.userAgent ?? UA, Accept: up.accept ?? 'application/json', 'Accept-Language': 'en-US,en;q=0.9', ...(up.headers ?? {}) },
       signal: AbortSignal.timeout(up.timeoutMs ?? 8_000),
       redirect: 'error',
     });
@@ -57,11 +61,15 @@ export async function fetchText(up: Upstream): Promise<string> {
     console.error(`[proxy] ${up.name} ${timedOut ? 'timed out' : 'could not be reached'}`, err);
     throw new ProxyError(timedOut ? 504 : 502, timedOut ? 'upstream_timeout' : 'upstream_unreachable', `${up.name} ${timedOut ? 'took too long to answer' : 'could not be reached'}.`);
   }
-  if (r.status === 404) throw new ProxyError(404, 'not_found', `${up.name} does not know that symbol.`);
-  if (r.status === 429) throw new ProxyError(503, 'upstream_rate_limited', `${up.name} is refusing requests from Flame's server right now.`);
+  if (r.status === 404) throw new ProxyError(404, 'not_found', `${up.name} does not know that symbol.`, 404);
+  if (r.status === 429) throw new ProxyError(503, 'upstream_rate_limited', `${up.name} is refusing requests from Flame's server right now.`, 429);
+  if (r.status === 401) {
+    console.error(`[proxy] ${up.name} refused the data key (401)`);
+    throw new ProxyError(502, 'upstream_auth', `${up.name} did not accept Flame's data key.`, 401);
+  }
   if (!r.ok) {
     console.error(`[proxy] ${up.name} answered ${r.status}`);
-    throw new ProxyError(502, 'upstream_error', `${up.name} answered with an error (${r.status}).`);
+    throw new ProxyError(502, 'upstream_error', `${up.name} answered with an error (${r.status}).`, r.status);
   }
   return r.text();
 }

@@ -100,6 +100,6 @@ Navigation is a floating dock at the bottom (Profile, Charting, Order flow, Pred
 ## What Flame v1 deliberately does not match
 
 - **Leaderboard, chat, research files.** They need accounts, a database and an AI bill. Later phase.
-- **Launchpad.** Brand-new tokens are the least educational part of HAJ. Skip unless Adrian asks.
-- **Options.** A serious options ticket (chains, greeks, expiries) is a project of its own.
+- ~~Launchpad.~~ Adrian asked for it on 17 November 2026. Now in scope: see `docs/brief-02-every-market.md`.
+- ~~Options.~~ Adrian asked for them on 17 November 2026. Now in scope: see `docs/brief-02-every-market.md`.
 - **All 32 indicators.** v1 ships the core dozen done properly (see the spec); the exotic ones follow by demand.

@@ -1,49 +1,39 @@
-import { cache, fetchJson, param, proxy, ProxyError } from '../_lib/http.js';
-import { YAHOO, YAHOO_UA, barsOf, quoteOf, symbol, type YahooResult } from '../_lib/yahoo.js';
+import { cache, param, proxy, ProxyError } from '../_lib/http.js';
+import { alpacaBars, alpacaSymbol, nyTime, quoteFrom, regularHours } from '../_lib/alpaca.js';
+import { symbol } from '../_lib/quotes.js';
 
-// GET /api/quote/spark?symbols=^GSPC,^IXIC,SPY
-// Last price, previous close and today's sparkline for up to 20 symbols in one call.
+// GET /api/quote/spark?symbols=SPY,QQQ,AAPL
+// Last price, previous close and the latest session's sparkline for up to 20 symbols, in two upstream calls.
 
 const MAX = 20;
 
-type SparkResponse = Record<string, YahooResult & { close?: (number | null)[]; chartPreviousClose?: number; previousClose?: number | null; symbol?: string }> & {
-  spark?: { result?: { symbol?: string; response?: YahooResult[] }[] | null };
-};
-
 export default proxy(async (req, res) => {
   const raw = param(req, 'symbols') ?? '';
-  const symbols = [...new Set(raw.split(',').filter(Boolean).map((s) => symbol(s)))];
-  if (symbols.length === 0) throw new ProxyError(400, 'bad_request', 'Send at least one symbol.');
-  if (symbols.length > MAX) throw new ProxyError(400, 'bad_request', `Send at most ${MAX} symbols.`);
-
-  const url = `${YAHOO}/v8/finance/spark?symbols=${symbols.map(encodeURIComponent).join(',')}&range=1d&interval=5m`;
-  const data = await fetchJson<SparkResponse>({ name: 'Yahoo Finance', url, userAgent: YAHOO_UA });
-  const now = Date.now();
-
-  // Yahoo has served this endpoint in two shapes; read whichever arrives.
-  const bySymbol = new Map<string, YahooResult>();
-  for (const r of data.spark?.result ?? []) {
-    const first = r.response?.[0];
-    if (r.symbol && first) bySymbol.set(r.symbol.toUpperCase(), first);
-  }
-  for (const sym of symbols) {
-    const flat = (data as Record<string, unknown>)[sym] as (YahooResult & { close?: (number | null)[]; chartPreviousClose?: number; timestamp?: number[] }) | undefined;
-    if (!bySymbol.has(sym) && flat && typeof flat === 'object' && Array.isArray(flat.timestamp)) {
-      const close = flat.close ?? [];
-      bySymbol.set(sym, {
-        meta: flat.meta ?? { chartPreviousClose: flat.chartPreviousClose, regularMarketPrice: [...close].reverse().find((v): v is number => typeof v === 'number') },
-        timestamp: flat.timestamp,
-        indicators: flat.indicators ?? { quote: [{ open: close, high: close, low: close, close, volume: [] }] },
-      });
+  const asked = [...new Set(raw.split(',').filter(Boolean).map((s) => symbol(s)))];
+  if (asked.length === 0) throw new ProxyError(400, 'bad_request', 'Send at least one symbol.');
+  if (asked.length > MAX) throw new ProxyError(400, 'bad_request', `Send at most ${MAX} symbols.`);
+  // Symbols the feed cannot cover are reported as missing, not as a failure of the whole request.
+  const known = new Map<string, string>();
+  for (const s of asked) {
+    try {
+      known.set(s, alpacaSymbol(s));
+    } catch {
+      // an index, future or currency
     }
   }
+  const now = Date.now();
+  const list = [...new Set(known.values())];
+  const [minutes, days] = list.length ? await Promise.all([alpacaBars(list, '5m', '1d', now), alpacaBars(list, '1d', '1mo', now)]) : [new Map(), new Map()];
 
-  const quotes = symbols.map((sym) => {
-    const r = bySymbol.get(sym);
-    if (!r) return { symbol: sym, missing: true as const };
-    return { ...quoteOf(sym, r.meta, now), spark: barsOf(r).map((b) => b.c) };
+  const quotes = asked.map((s) => {
+    const sym = known.get(s);
+    const bars = sym ? regularHours(minutes.get(sym) ?? [], '5m') : [];
+    const daily = sym ? (days.get(sym) ?? []) : [];
+    if (!sym || (bars.length === 0 && daily.length === 0)) return { symbol: s, missing: true as const };
+    const lastDay = bars.length ? nyTime(bars[bars.length - 1]!.t).date : null;
+    const session = lastDay ? bars.filter((b) => nyTime(b.t).date === lastDay) : [];
+    return { ...quoteFrom(s, session, daily, now), spark: session.map((b) => b.c) };
   });
-  if (quotes.every((q) => 'missing' in q)) throw new ProxyError(502, 'upstream_unreadable', 'Yahoo Finance sent an answer without any quotes.');
   cache(res, 15, 60);
   res.status(200).json({ quotes });
 });

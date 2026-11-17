@@ -8,7 +8,7 @@ import type { VenueAdapter } from './types';
 
 const binance = new BinanceAdapter();
 const sim = new SimAdapter();
-const extra = new Map<string, VenueAdapter>([['yahoo', stocks]]);
+const extra = new Map<string, VenueAdapter>([['stock', stocks]]);
 
 /** Later phases register the stock and prediction-market adapters here. */
 export function registerVenue(prefix: string, adapter: VenueAdapter): void {

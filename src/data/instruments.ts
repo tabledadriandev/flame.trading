@@ -1,6 +1,6 @@
 import type { AssetClass } from '../engine/types';
 
-// An instrument has one id (crypto:BTC, yahoo:SPY, poly:<market-id>). Panes
+// An instrument has one id (crypto:BTC, stock:SPY, poly:<market-id>). Panes
 // take the id and never care where the data comes from.
 
 export type InstrumentKind = 'crypto' | 'stock' | 'etf' | 'index' | 'rate' | 'commodity' | 'fx' | 'odds';
@@ -67,7 +67,7 @@ const Y = (
   kind: InstrumentKind,
   tradeInstead?: string,
 ): Instrument => ({
-  id: `yahoo:${ySymbol}`,
+  id: `stock:${ySymbol}`,
   symbol,
   name,
   kind,
@@ -77,14 +77,14 @@ const Y = (
 });
 
 export const STOCKS: Instrument[] = [
-  Y('SPY', 'SPY', 'SPDR S&P 500 ETF', 'etf'),
-  Y('QQQ', 'QQQ', 'Invesco QQQ (Nasdaq 100)', 'etf'),
-  Y('IWM', 'IWM', 'iShares Russell 2000 ETF', 'etf'),
-  Y('DIA', 'DIA', 'SPDR Dow Jones ETF', 'etf'),
-  Y('GLD', 'GLD', 'SPDR Gold Shares', 'etf'),
-  Y('USO', 'USO', 'United States Oil Fund', 'etf'),
-  Y('TLT', 'TLT', 'iShares 20+ Year Treasury ETF', 'etf'),
-  Y('VIXY', 'VIXY', 'ProShares VIX Short-Term Futures ETF', 'etf'),
+  Y('SPY', 'SPY', 'S&P 500 (SPDR ETF)', 'etf'),
+  Y('QQQ', 'QQQ', 'Nasdaq 100 (Invesco ETF)', 'etf'),
+  Y('DIA', 'DIA', 'Dow Jones (SPDR ETF)', 'etf'),
+  Y('IWM', 'IWM', 'Russell 2000 (iShares ETF)', 'etf'),
+  Y('VIXY', 'VIXY', 'VIX futures (ProShares ETF)', 'etf'),
+  Y('TLT', 'TLT', 'Long US Treasuries (iShares ETF)', 'etf'),
+  Y('GLD', 'GLD', 'Gold (SPDR ETF)', 'etf'),
+  Y('USO', 'USO', 'Crude oil (US Oil Fund ETF)', 'etf'),
   Y('AAPL', 'AAPL', 'Apple', 'stock'),
   Y('NVDA', 'NVDA', 'Nvidia', 'stock'),
   Y('MSFT', 'MSFT', 'Microsoft', 'stock'),
@@ -97,20 +97,16 @@ export const STOCKS: Instrument[] = [
   Y('JPM', 'JPM', 'JPMorgan Chase', 'stock'),
 ];
 
-export const BOARDS: Instrument[] = [
-  Y('^GSPC', 'S&P 500', 'S&P 500 index', 'index', 'yahoo:SPY'),
-  Y('^IXIC', 'Nasdaq', 'Nasdaq Composite index', 'index', 'yahoo:QQQ'),
-  Y('^DJI', 'Dow', 'Dow Jones Industrial Average', 'index', 'yahoo:DIA'),
-  Y('^RUT', 'Russell 2000', 'Russell 2000 index', 'index', 'yahoo:IWM'),
-  Y('^VIX', 'VIX', 'CBOE Volatility Index', 'index', 'yahoo:VIXY'),
-  Y('^TNX', '10-year yield', 'US 10-year Treasury yield', 'rate', 'yahoo:TLT'),
-  Y('GC=F', 'Gold', 'Gold futures', 'commodity', 'yahoo:GLD'),
-  Y('CL=F', 'Crude', 'WTI crude oil futures', 'commodity', 'yahoo:USO'),
-  Y('EURUSD=X', 'EUR/USD', 'Euro against the US dollar', 'fx'),
-];
+/**
+ * The Markets boards. Flame's stock feed covers US-listed stocks and ETFs, not
+ * indices, futures or currencies, so each market is shown through the ETF that
+ * tracks it: the thing you would actually trade.
+ */
+export const BOARD_INDICES = ['stock:SPY', 'stock:QQQ', 'stock:DIA', 'stock:IWM', 'stock:VIXY'];
+export const BOARD_MACRO = ['stock:TLT', 'stock:GLD', 'stock:USO'];
 
 const known = new Map<string, Instrument>();
-for (const i of [...CRYPTO, ...STOCKS, ...BOARDS]) known.set(i.id, i);
+for (const i of [...CRYPTO, ...STOCKS]) known.set(i.id, i);
 
 /** Remember an instrument found by search so it resolves after a reload. */
 export function registerInstrument(i: Instrument): void {

@@ -21,7 +21,7 @@ import { DEFAULT_SETTINGS as S, posKey, type Account, type OrderInput, type Quot
 // docs/product-spec.md. The headings below follow that section.
 
 const BTC = 'crypto:BTC';
-const SPY = 'yahoo:SPY';
+const SPY = 'stock:SPY';
 
 const q = (last: number, extra: Partial<Quote> = {}): Quote => ({ bid: last, ask: last, last, t: 1000, ...extra });
 const book = (bid: number, ask: number): Quote => ({

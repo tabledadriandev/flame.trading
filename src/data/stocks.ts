@@ -28,6 +28,7 @@ interface ApiQuote {
   time: number | null;
   open: boolean;
   session: { start: number; end: number } | null;
+  delayMinutes?: number;
 }
 
 interface ChartPayload {
@@ -230,16 +231,16 @@ class StocksAdapter implements VenueAdapter {
 
 export const stocks = new StocksAdapter();
 
-const KINDS: Record<string, InstrumentKind> = { EQUITY: 'stock', ETF: 'etf', INDEX: 'index', FUTURE: 'commodity', CURRENCY: 'fx', MUTUALFUND: 'etf' };
+const KINDS: Record<string, InstrumentKind> = { EQUITY: 'stock', ETF: 'etf' };
 
 registerRemoteSearch(async (q) => {
   const data = await api<{ results: { symbol: string; name: string; type: string; exchange: string }[] }>(`/api/quote/search?q=${encodeURIComponent(q)}`);
   return data.results.map((r): Instrument => {
     const kind = KINDS[r.type] ?? 'stock';
     return {
-      id: `yahoo:${r.symbol}`,
-      symbol: r.symbol.replace(/^\^/, ''),
-      name: r.exchange ? `${r.name} (${r.exchange})` : r.name,
+      id: `stock:${r.symbol}`,
+      symbol: r.symbol,
+      name: r.name === r.symbol ? `${r.symbol} (US-listed)` : r.name,
       kind,
       cls: 'stock',
       tradable: kind === 'stock' || kind === 'etf',

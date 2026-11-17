@@ -75,8 +75,8 @@ describe('news feed reader', () => {
   });
 
   it('tags a headline with what it is about', () => {
-    expect(subjects('Federal Reserve issues FOMC statement on interest rates')).toEqual(['yahoo:^TNX']);
-    expect(subjects('SEC charges firm over Bitcoin fund and Nvidia disclosures')).toEqual(['crypto:BTC', 'yahoo:NVDA']);
+    expect(subjects('Federal Reserve issues FOMC statement on interest rates')).toEqual(['stock:TLT']);
+    expect(subjects('SEC charges firm over Bitcoin fund and Nvidia disclosures')).toEqual(['crypto:BTC', 'stock:NVDA']);
     expect(subjects('Board appoints new member')).toEqual([]);
   });
 });

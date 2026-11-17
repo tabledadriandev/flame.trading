@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
 import { binanceTopMarkets, type BinanceMarket } from '../data/binance';
-import { BOARDS, instrument, registerInstrument, type Instrument } from '../data/instruments';
+import { BOARD_INDICES, BOARD_MACRO, instrument, registerInstrument, type Instrument } from '../data/instruments';
 import { route } from '../data/feed';
 import { stockSpark, stocks } from '../data/stocks';
 import { Spark, useSpark } from '../desk/Watchlist';
@@ -17,8 +17,8 @@ import { activeItems, useWatchlists } from '../state/watchlists';
 import { Help, PaneState } from '../ui/controls';
 import { FeedBadge } from '../ui/FeedBadge';
 
-const INDICES = BOARDS.filter((b) => b.kind === 'index').map((b) => b.id);
-const MACRO = BOARDS.filter((b) => b.kind !== 'index').map((b) => b.id);
+const INDICES = BOARD_INDICES;
+const MACRO = BOARD_MACRO;
 const CRYPTO = ['crypto:BTC', 'crypto:ETH', 'crypto:SOL', 'crypto:BNB', 'crypto:XRP', 'crypto:DOGE'];
 
 function Clocks() {
@@ -253,8 +253,8 @@ export function Markets() {
       </div>
       <Clocks />
       <div className="boards">
-        <Board title="Indices" ids={INDICES} note="Indices are chart only. Each opens with the ETF that tracks it one click away." />
-        <Board title="Rates and commodities" ids={MACRO} />
+        <Board title="Stock indices, by their ETFs" ids={INDICES} note="Flame's stock feed carries stocks and ETFs, not the indices themselves, so each index is shown through the fund that tracks it. Prices are 15 minutes behind." />
+        <Board title="Bonds, gold and oil, by their ETFs" ids={MACRO} />
         <Board title="Crypto" ids={CRYPTO} />
         <Board title={`Your board: ${listName}`} ids={pinned} empty="Add symbols to your watchlist and they appear here." />
         <Movers />

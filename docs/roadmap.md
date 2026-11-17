@@ -84,6 +84,22 @@ Not started:
 - [ ] Flow view: footprint (from the live trade stream plus Binance `aggTrades` for backfill), volume profile, cumulative delta, the large merged book (`<Book rangePct={0.02} />`), funding and open interest from Hyperliquid (`POST /info {"type":"metaAndAssetCtxs"}`: not yet verified; check CORS first). `applyFunding()` exists in the engine and is tested but nothing calls it yet
 - [ ] Classic green/red colour option. The setting and the `data-convention="classic"` attribute exist, but `tokens.css` has no classic values yet, so choosing it changes nothing. Validator results on 17 November 2026: the pair in `docs/design-system.md` fails colour-blind separation (ΔE 2.9 and 5.0). Light theme: `#2f9e6e` with `#a8201a` passes every check (ΔE 14.8), green as text needs `#1f7a52`. Dark theme: no pair tried yet passes the lightness band; greens must be at or below L 0.67 (try around `#3fae7c`) with a red near `#d2553f`
 
+## Phase 5B: every market, and a new favicon (added 17 November 2026)
+
+Adrian asked for options, memecoins, stocks and "everything", and for a better favicon. The full brief, with engine rules, data sources and acceptance checks 10 to 17, is `docs/brief-02-every-market.md`. Read it before starting any item here.
+
+- [ ] Favicon and app icon: at least four candidates on one preview sheet, Adrian picks, ship to every size and to `src/shell/Mark.tsx`
+- [ ] `src/options/bs.ts`: Black-Scholes price, greeks and implied-volatility solver, unit-tested
+- [ ] Engine: option positions (long, covered call, cash-secured put, defined-risk spreads), cash settlement at expiry through the catch-up path, fees. A test for every rule in the brief
+- [ ] Crypto options from Deribit: verify the public API and CORS, adapter, chain view, ticket, payoff chart, position greeks
+- [ ] Engine: pool fills on the constant-product curve, the 2% of liquidity cap, marking at what the pool would pay, the "rugged" tag
+- [ ] Memecoins: verify DexScreener, GeckoTerminal and a risk source; Launchpad view; token on the desk with the Pool pane
+- [ ] Stocks and ETFs live through Alpaca behind the existing `/api/quote` shape. **Needs `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` in Vercel, which Adrian adds himself.** Build and test against the simulated feed until then
+- [ ] Markets boards filled with labelled ETF proxies for indices, commodities, rates and currencies; real currency pairs if a Twelve Data key is added
+- [ ] Stock and ETF options on Alpaca's indicative feed
+- [ ] Option strategy templates: vertical spread, covered call, cash-secured put, straddle, strangle
+- [ ] Acceptance items 10 to 17
+
 ## Phase 6: reviews before telling anyone
 
 - [ ] Design critique of every view in both themes and at phone width
@@ -97,8 +113,8 @@ Not started:
 - Accounts and sync across devices
 - Leaderboard
 - AI chat and research files
-- Launchpad
-- Options
+
+Launchpad and Options were on this list until 17 November 2026; they are now Phase 5B.
 
 ## Deployment status
 
