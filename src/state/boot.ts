@@ -26,17 +26,7 @@ const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastCh
  * in memory and save over each other's fills. Returns false when another tab
  * already holds it.
  */
-async function claimAccount(): Promise<boolean> {
-  // A page that has just been reloaded (after an update, say) can ask before the page it replaced has let
-  // go. That is not another tab: ask again a few times before concluding that it is.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    if (await tryClaim()) return true;
-    await new Promise<void>((done) => setTimeout(done, 350));
-  }
-  return false;
-}
-
-function tryClaim(): Promise<boolean> {
+function claimAccount(): Promise<boolean> {
   if (typeof navigator === 'undefined' || !navigator.locks) return Promise.resolve(true);
   return new Promise((resolve) => {
     void navigator.locks
