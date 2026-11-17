@@ -34,25 +34,27 @@ Also in this phase, from the review of the data and state layers:
 - Binance requests time out, honour `Retry-After`, and the book snapshot backs off instead of retrying on every update
 - A stored document that cannot be read is never overwritten with defaults
 
-## Phase 2: the desk Flame is for
+## Phase 2: the desk Flame is for (done 17 November 2026)
 
-- [ ] Heat ladder from one venue; then the merged book (Coinbase, Kraken, Bitstamp, OKX, Bybit, Hyperliquid adapters) with walls and venue split
-- [ ] Tape with a size filter
-- [ ] Ticket: stops, take-profit and stop-loss, size-by-risk, leverage with liquidation preview
-- [ ] Orders and positions as draggable lines on the chart
-- [ ] Indicators: SMA, EMA, Bollinger, VWAP with bands, RSI, MACD, ATR, previous-day levels (unit-tested maths)
-- [ ] Resizable, persistent pane layout; zen chart
-- [ ] Command palette and the keyboard map
-- [ ] Phone layout for the desk
-- [ ] Acceptance items 2, 3 and 8
+- [x] Heat ladder from one venue; then the merged book (Coinbase, Kraken, Bitstamp, OKX, Bybit, Hyperliquid adapters) with walls and venue split
+- [x] Tape with a size filter
+- [x] Ticket: stops, take-profit and stop-loss, size-by-risk, leverage with liquidation preview
+- [x] Orders and positions as draggable lines on the chart (a move that would trigger the order at once is refused)
+- [x] Indicators: SMA, EMA, Bollinger, VWAP with bands, RSI, MACD, ATR, previous-day levels (unit-tested maths); cumulative delta, anchored VWAP and the volume profile landed here too
+- [x] Resizable, persistent pane layout; zen chart
+- [x] Command palette and the keyboard map
+- [x] Phone layout for the desk
+- [x] The ten-second review form on close (pulled forward from Phase 4: acceptance item 3 needs it)
+- [x] Chart levels and price alerts (pulled forward from Phase 5)
+- [x] Acceptance items 2 and 3 on flame.trading. Item 8: the phone layout and the hold-to-confirm button are checked at phone width in a desktop browser; installing from Safari on a real iPhone still needs Adrian's phone
 
-## Phase 3: stocks and the markets board
+## Phase 3: stocks and the markets board (built; blocked on a data source)
 
-- [ ] `/api/quote/chart`, `/spark`, `/search` with validation and caching; verify from the deployed site
-- [ ] Symbol search across crypto and stocks
-- [ ] Stocks on the desk with the "Delayed" label, spot and margin
-- [ ] Markets view: session clocks, boards, movers
-- [ ] Acceptance item 5
+- [x] `/api/quote/chart`, `/spark`, `/search` with validation and caching; verified from the deployed site
+- [x] Symbol search across crypto and stocks (crypto is live; the stock half reports that its source is not answering)
+- [ ] Stocks on the desk with the "Delayed" label, spot and margin. **Built and working with the simulated feed, but no live data:** Yahoo refuses Flame's server (and Adrian's Mac) with 429, and the documented fallbacks are behind browser challenges. See "Status on 17 November 2026" in `docs/data-sources.md`. Needs a data key from Adrian
+- [x] Markets view: session clocks, boards, movers, and the strip of today's moves (the index and commodity boards show "These quotes are not available" until the source is fixed)
+- [ ] Acceptance item 5. Blocked on the same thing
 
 ## Phase 4: learning tools
 

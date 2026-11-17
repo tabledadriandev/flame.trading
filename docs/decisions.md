@@ -35,3 +35,23 @@ Notable choices made while building Flame, newest last. Each has the reason, so 
 **`lastSeen` is the last moment a price arrived, not the wall clock.** A laptop that sleeps overnight wakes with a gap the engine never saw. Every price now checks how long it has been since the previous one; past 90 seconds, the missed candles are replayed (orders and positions that existed before the gap only) and live prices wait until the replay is done. The same path handles reopening Flame.
 
 **A hidden tab still evaluates orders, but less promptly.** Browsers throttle timers in background tabs, so a stop on the desk instrument can fill up to a minute late there, at the book as it is then. The batch still carries the high and low it missed, so the stop is not skipped.
+
+**The merged book lines each venue up on its own mid.** The spec said to convert USDT prices to USD at parity. Tried literally, Coinbase's USD book sits a few dollars from Binance's USDT book, so merged bids landed above asks. Each secondary venue is now shifted by the difference between its mid and the primary's before bucketing; depth is compared at the same distance from the mid. `docs/data-sources.md` and the pane's help say so.
+
+**Hyperliquid contributes only 20 levels near the touch.** Its book can be coarsened to reach deeper, but coarse rows from one venue would pile onto round prices in a fine ladder and look like walls.
+
+**A typed order loads into the ticket; a second Enter places it.** The spec lists "place an order" among palette actions. Loading it into the ticket first shows the preview sentence (fee, cash used, any problem) before the order exists, and costs one keystroke.
+
+**Dragging an order line to where it would trigger at once is refused.** Found in review: dragging a stop above the market turned it into a market sell on the next tick. The engine now rejects such a move with the reason, and the order stays where it was.
+
+**The review form arrived in Phase 2, alerts too.** Acceptance item 3 ("the journal asks for a note") is listed under Phase 2 but depended on Phase 4's journal. Alt-click alerts were offered by the chart as soon as levels existed, so they had to actually fire.
+
+**R is shown net of fees, with the before-fees figure beside it when they differ.** A stop $20 from entry on BTC risks $50 on a position whose round-trip fee is $160. The stop itself cost about −1.3R; fees took the trade to −4.5R. Showing both teaches why very tight stops on taker orders do not work.
+
+**Stocks: no live source, by choice not to circumvent.** Yahoo answers 429 to Flame's server and to a plain request from Adrian's Mac. The cookie-and-crumb workaround was not used: it defeats an access control. See `docs/data-sources.md`. The whole stock path is built against Flame's own `/api/quote` shape and verified with the simulated feed.
+
+**Exchange hours: two of five confirmed from the exchange's own page.** NYSE and HKEX were read from their sites. London, Frankfurt and Tokyo could not be fetched (a spreadsheet, a 404, a 403) and are marked unconfirmed in `docs/data-sources.md`.
+
+**Clocks do not use hot or cold.** An open exchange is said with the word "Open", a bolder weight and a rule along the top of its tile. Open or closed is not buying or selling pressure.
+
+**`consistent-ui` runs once, in Phase 6.** It compares every surface against every other; with one finished view there is nothing to compare. The desk was checked against the design system by the design critique instead.

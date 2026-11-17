@@ -66,13 +66,28 @@ Things to check for each venue when you verify:
 - **OKX and Bybit:** both send a checksum or sequence with book updates; on a mismatch, resubscribe.
 - Rate limits and connection limits per IP.
 
+### The other six venues: verified 17 November 2026
+
+Each was tested with Node's WebSocket from Adrian's Mac, then in Chrome through the merged book on the desk. All are public and need no key.
+
+| Venue | What was found |
+|---|---|
+| Coinbase | `{"type":"subscribe","product_ids":["BTC-USD"],"channels":["level2_batch","matches"]}` works without authentication. The server reports the channel back as `level2_50`. A `snapshot` (`bids`/`asks` as `[price, size]` strings) is followed by `l2update` messages with `changes: [[side, price, size]]`; size `0` removes the level. |
+| Kraken | `wss://ws.kraken.com/v2`, `{"method":"subscribe","params":{"channel":"book","symbol":["BTC/USD"],"depth":500}}`. Snapshot then updates, levels as `{price, qty}` numbers. Kraken keeps only the top N levels: the client must drop levels that fall out of range. Updates carry a CRC32 `checksum`; Flame does not verify it and instead resubscribes if the book ever crosses. `heartbeat` messages arrive every second. Kraken's public API lists no tokenized stock pairs here. |
+| Bitstamp | `{"event":"bts:subscribe","data":{"channel":"order_book_btcusd"}}`. Every message is the full top 100 per side; no diffs to apply. |
+| OKX | Port 8443 answers with a notice that it "will be retired soon. Please migrate to port 443", so Flame uses `wss://ws.okx.com/ws/v5/public` first. `books` channel: `action: "snapshot"` then `"update"`, each with `seqId` and `prevSeqId`; Flame resubscribes when `prevSeqId` does not match. Levels are `[price, size, "0", orderCount]`. The server expects the text `ping` at least every 30 seconds and answers `pong`. |
+| Bybit | `{"op":"subscribe","args":["orderbook.200.BTCUSDT"]}`. `type: "snapshot"` then `"delta"`, with an update id `u` that rises by one; Flame resubscribes on a gap. Needs `{"op":"ping"}` every 20 seconds. |
+| Hyperliquid | `{"method":"subscribe","subscription":{"type":"l2Book","coin":"BTC"}}` sends the whole book (20 levels a side, `{px, sz, n}`) about twice a second. Flame uses the default precision, so Hyperliquid contributes depth near the touch only. `{"method":"ping"}` keeps the connection open. The `perpDexs` query shows a deployer-run exchange (`xyz`) with perps on stocks and commodities; not used in v1. |
+
+A coin a venue does not list simply never delivers a book; after 12 seconds the pane reports "No book for this coin on" that venue.
+
 ### The merged book
 
 Each adapter keeps its own price → size map per side. An aggregator runs about four times a second:
 
 1. Take the mid from the primary venue.
 2. Keep levels within ±1% of the mid.
-3. Convert USDT-quoted prices to USD at parity (note this in the pane's help).
+3. Line every other venue up on its own mid before adding it (changed from "convert USDT to USD at parity": at parity, a USD venue quoting a few dollars above a USDT venue put bids above asks and the merged book crossed). USDT and USDC still count as dollars. The pane's help says so.
 4. Bucket into rows of the chosen tick ($1, $5, $10, $20, $50 for BTC; scale by price for other coins).
 5. Emit rows with total size and the per-venue split, plus the largest row on each side as the supply and demand wall.
 
@@ -84,25 +99,58 @@ Build the crypto list from Binance `GET /api/v3/ticker/24hr`: USDT pairs, ranked
 
 ## Stocks, ETFs, indices, rates, commodities: through `/api`
 
-HAJ's symbols are Yahoo Finance notation, and Yahoo's unofficial chart endpoints are the simplest free source. They are not a licensed feed: they can change or rate-limit without notice, and prices are delayed for many exchanges. That is acceptable for a paper-trading tool that labels the delay. If Flame becomes a public product with real traffic, move to a licensed feed.
+### Status on 17 November 2026: no working source
 
-| Function | Upstream | Returns |
+**Yahoo Finance refuses Flame.** Tested three ways with a browser-like `User-Agent`, on `query1` and `query2`:
+
+- from Adrian's Mac with `curl` and with Node: `429 Too Many Requests` on the first request of the day, for `chart`, `spark` and `search` alike
+- from the deployed function on Vercel (region `cdg1`): the same `429`
+
+So the block is not a rate limit Flame ran into; Yahoo now turns away clients that arrive without its cookies. Working around that (harvesting a cookie and crumb) would be defeating an access control, and Flame does not do it.
+
+**The fallbacks this page used to name do not work either.** Stooq's CSV endpoints now answer with a JavaScript proof-of-work page ("This site requires JavaScript to verify your browser"). Cboe's delayed-quote files answer `307` from Cloudflare.
+
+**What is built.** The three functions exist, validate their input and return clean JSON errors; today every upstream call ends in `503 upstream_rate_limited`. The browser side (`src/data/stocks.ts`) talks only to `/api/quote/*`, so the stock views, the "Delayed" label, margin mode and market-hours rules are all in place and show an honest "These quotes are not available" state.
+
+**What unblocks it.** A licensed or key-based feed, with the key in a Vercel environment variable (never in the browser, never asked of users). Only `api/_lib/yahoo.ts` and the three handlers need to change; the response shape stays. Candidates, none tested because each needs an account:
+
+| Provider | Free tier (as advertised; verify) | Fit |
 |---|---|---|
-| `GET /api/quote/chart?symbol=SPY&range=1d&interval=5m` | `https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=&interval=&includePrePost=false` | Candles plus meta (last price, previous close, currency, exchange timezone, market state) |
-| `GET /api/quote/spark?symbols=^GSPC,^IXIC,…` | `https://query1.finance.yahoo.com/v8/finance/spark?symbols=&range=1d&interval=5m` | Last price, previous close and a sparkline for each symbol, in one call (for the Markets boards) |
-| `GET /api/quote/search?q=nvid` | `https://query1.finance.yahoo.com/v1/finance/search?q=&quotesCount=8&newsCount=0` | Symbol matches |
+| Alpaca Market Data | IEX real-time and 15-minute-delayed consolidated bars, about 200 requests a minute | Best fit: bars at every timeframe Flame uses, snapshots for many symbols in one call. Stocks and ETFs only; no indices, rates or futures |
+| Twelve Data | About 800 requests a day, 8 a minute | Covers stocks, ETFs, some indices and FX; the daily budget is tight for polling a watchlist |
+| Finnhub | 60 requests a minute; quotes free, intraday candles paid | Quotes only; not enough for charts |
+
+Until then, acceptance check 5 (SPY, "Delayed", buy 10 shares) cannot pass on the live site. The same flow passes with the simulated feed (`?sim=1`), which exercises everything except the upstream call.
+
+### The intended shape
+
+| Function | Upstream (Yahoo, when it answers) | Returns |
+|---|---|---|
+| `GET /api/quote/chart?symbol=SPY&range=1d&interval=5m` | `https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=&interval=&includePrePost=false` | `{quote, interval, range, candles}`: bars plus last price, previous close, currency, exchange, time zone and whether the regular session is open |
+| `GET /api/quote/spark?symbols=^GSPC,^IXIC,…` | `https://query1.finance.yahoo.com/v8/finance/spark?symbols=&range=1d&interval=5m` | `{quotes: [...]}`: the same quote fields and a sparkline for up to 20 symbols in one call |
+| `GET /api/quote/search?q=nvid` | `https://query1.finance.yahoo.com/v1/finance/search?q=&quotesCount=8&newsCount=0` | `{results: [{symbol, name, type, exchange}]}` |
+
+Verified on flame.trading on 17 November 2026: a bad symbol (`../../etc`) returns `400 bad_symbol`; an unknown range returns `400 bad_range`; `POST` returns `405`; an upstream refusal returns `503` with a sentence, `Cache-Control: no-store`, and no stack trace.
 
 Notes:
 
-- Send a browser-like `User-Agent`; Yahoo rejects some default clients.
-- The `v7/finance/quote` endpoint now needs a cookie and crumb. Avoid it; `chart` and `spark` carry what Flame needs.
-- Cache: `s-maxage=15, stale-while-revalidate=60` for intraday, an hour for daily history.
-- Validate and whitelist the `symbol` and `range` parameters; never pass a user string straight into an upstream URL. Return upstream failures as a clear JSON error, not a 500 with a stack.
-- Fallbacks if Yahoo stops answering from Vercel's addresses: Stooq CSV (daily history, no key), or a free-key provider (Twelve Data, Finnhub, Alpha Vantage) with the key in a Vercel environment variable.
+- The symbol must match `^[A-Z0-9^][A-Z0-9.\-=^]{0,14}$`; range and interval come from fixed lists, and only the combinations the source serves are allowed. The upstream host is a constant; nothing a caller sends can change it.
+- Cache: `s-maxage=15, stale-while-revalidate=60` for intraday, an hour for daily history, five minutes for search. Errors are never cached.
+- Vercel runs these files as native ES modules: relative imports need the `.js` extension (`../_lib/http.js`), or the function fails at load with `ERR_MODULE_NOT_FOUND`.
 
 Useful symbols: `^GSPC` S&P 500, `^IXIC` Nasdaq, `^DJI` Dow, `^RUT` Russell 2000, `^VIX` VIX, `^TNX` 10-year yield, `GC=F` gold, `CL=F` crude, `EURUSD=X` euro–dollar.
 
-Market hours for the session clocks do not need a feed: New York 09:30–16:00 America/New_York, London 08:00–16:30 Europe/London, Frankfurt 09:00–17:30 Europe/Berlin, Tokyo 09:00–15:30 Asia/Tokyo (lunch break 11:30–12:30), Hong Kong 09:30–16:00 Asia/Hong_Kong (lunch break 12:00–13:00). Compute with `Intl.DateTimeFormat` time zones; weekends are closed; holidays are a later refinement. Verify these hours once against each exchange's own page.
+Market hours for the session clocks do not need a feed: New York 09:30–16:00 America/New_York, London 08:00–16:30 Europe/London, Frankfurt 09:00–17:30 Europe/Berlin, Tokyo 09:00–15:30 Asia/Tokyo (lunch break 11:30–12:30), Hong Kong 09:30–16:00 Asia/Hong_Kong (lunch break 12:00–13:00). Computed with `Intl.DateTimeFormat` time zones (`src/lib/sessions.ts`); weekends are closed; holidays are a later refinement, and the Markets view says so.
+
+Checked against each exchange's own page on 17 November 2026:
+
+| Exchange | Result |
+|---|---|
+| NYSE | Confirmed: core session 9:30 a.m. to 4:00 p.m. ET (`nyse.com/markets/hours-calendars`) |
+| HKEX | Confirmed: 9:30 to 12:00 and 13:00 to 16:00, with auctions either side (`hkex.com.hk`, Securities Market trading hours) |
+| London | **Not confirmed.** The exchange's page points to a spreadsheet for hours; the value here is from memory |
+| Frankfurt (Xetra) | **Not confirmed.** The official pages redirected or returned 404 |
+| Tokyo | **Not confirmed.** `jpx.co.jp` returned 403 |
 
 ## Prediction markets: through `/api`
 

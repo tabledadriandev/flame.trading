@@ -3,7 +3,7 @@ import type { ViewId } from '../lib/route';
 // Honest placeholders for the views that are specified but not built.
 // Each one is replaced by its real view as the roadmap in docs/roadmap.md lands.
 
-const COPY: Record<Exclude<ViewId, 'desk'>, { title: string; body: string }> = {
+const COPY: Partial<Record<ViewId, { title: string; body: string }>> = {
   markets: {
     title: 'Markets',
     body: 'Indices, rates, commodities and crypto on one board, with session clocks for New York, London, Frankfurt, Tokyo and Hong Kong, and the day’s biggest movers.',
@@ -34,8 +34,8 @@ const COPY: Record<Exclude<ViewId, 'desk'>, { title: string; body: string }> = {
   },
 };
 
-export function Plan({ view }: { view: Exclude<ViewId, 'desk'> }) {
-  const { title, body } = COPY[view];
+export function Plan({ view }: { view: ViewId }) {
+  const { title, body } = COPY[view] ?? { title: view, body: '' };
   return (
     <article className="plan">
       <h1>{title}</h1>

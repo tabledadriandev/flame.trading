@@ -56,7 +56,7 @@ Every divider drags; sizes persist. Any pane can be maximised (and the chart has
 - Each indicator has a one-line "what this tells you" and sensible defaults; settings are a small popover, not a modal
 - "Replay from here" on right-click (see Replay)
 
-**Book (heat ladder).** The signature pane. Price rows down the middle, bids below the mid and asks above. Each row shows total resting size as a bar and as a number, shaded by how large it is relative to the visible book (a one-hue ramp per side: hot for bids, cold for asks). For crypto the book is merged across venues; a row expands to show which venue holds what. The largest wall on each side is labelled with its size and distance. Row size (tick grouping) steps finer or coarser. Click a price to load it into the ticket as a limit.
+**Book (heat ladder).** The signature pane. Price rows down the middle, bids below the mid and asks above. Each row shows total resting size as a bar and as a number, shaded by how large it is relative to the visible book (a one-hue ramp per side: hot for bids, cold for asks). For crypto the book is merged across venues, each lined up on its own mid price; a row expands to show which venue holds what. The largest wall on each side is labelled with its size and distance. Row size (tick grouping) steps finer or coarser. Click a price to load it into the ticket as a limit.
 
 Above the ladder: spread, mid, and the bid/ask imbalance within ±0.5% as a single split bar with a plain read ("Buyers heavier").
 
@@ -151,7 +151,8 @@ These are the engine's contract. Each line needs a test.
 
 **Trades and R**
 - A trade is the life of a position from first fill to flat. It records every fill, total fees, duration, MAE and MFE.
-- If a stop existed at entry, initial risk = |entry − stop| × size, and the result is also stored in R (P&L ÷ initial risk).
+- If a stop existed at entry, initial risk = |entry − stop| × size, and the result is also stored in R (P&L ÷ initial risk). P&L is net of fees, so R is too; where fees move it by 0.1R or more the interface also shows R before fees.
+- Moving a working order (by dragging its line or editing its price) to a price where it would trigger on the next tick is refused.
 
 **Persistence**
 - Account, orders, positions, fills, trades, journal, watchlists, layout and settings persist in the browser (IndexedDB, with a versioned schema and migrations). Candles are cached in memory only.
@@ -159,7 +160,7 @@ These are the engine's contract. Each line needs a test.
 
 ## Command palette and keys
 
-`⌘K` / `Ctrl K` opens the palette: jump to a symbol, change timeframe, switch view, add an indicator, place an order ("buy 0.1 btc limit 63000"), reset layout. Every action in the palette shows its shortcut.
+`⌘K` / `Ctrl K` opens the palette: jump to a symbol, change timeframe, switch view, add an indicator, type an order ("buy 0.1 btc limit 63000"), reset layout. A typed order loads into the ticket with its preview; `Enter` there places it. Every action in the palette that has a shortcut shows it.
 
 | Key | Action |
 |---|---|

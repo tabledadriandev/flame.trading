@@ -3,6 +3,7 @@ import { useView } from './lib/route';
 import { useAccount } from './state/account';
 import { Desk } from './views/Desk';
 import { Plan } from './views/Plan';
+import { Markets } from './views/Markets';
 import { PaneState } from './ui/controls';
 import { exportBackup, remove } from './state/persist';
 import { takeOver } from './state/boot';
@@ -81,7 +82,7 @@ export function App() {
   if (loadError) return <LoadFailed error={loadError} />;
   return (
     <Shell view={view}>
-      {!ready ? <PaneState title="Opening your account" /> : view === 'desk' ? <Desk /> : <Plan view={view} />}
+      {!ready ? <PaneState title="Opening your account" /> : view === 'desk' ? <Desk /> : view === 'markets' ? <Markets /> : <Plan view={view} />}
     </Shell>
   );
 }

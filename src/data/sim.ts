@@ -130,13 +130,17 @@ export class SimAdapter implements VenueAdapter {
 
   subscribeCandles(symbol: string, tf: Timeframe, on: (c: Candle) => void): Unsubscribe {
     const ms = tfMs(tf);
+    let stopped = false;
     const timer = setInterval(() => {
       void this.candles(symbol, tf, { limit: 1 }).then((cs) => {
         const c = cs[0];
-        if (c) on(c);
+        if (c && !stopped) on(c);
       });
     }, Math.min(1_000, ms));
-    return () => clearInterval(timer);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
   }
 
   subscribeTrades(symbol: string, on: (t: Tick[]) => void): Unsubscribe {

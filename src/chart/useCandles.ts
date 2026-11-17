@@ -78,6 +78,8 @@ export function useCandles(instrumentId: string, tf: Timeframe, limit = 1000): C
     void load();
 
     const stop = r.adapter.subscribeCandles(r.symbol, tf, (c) => {
+      // A bar that arrives after the chart moved on belongs to the old instrument.
+      if (!alive) return;
       const cur = data.current;
       const last = cur[cur.length - 1];
       if (!last) return; // history has not arrived; the stream alone is not a chart
