@@ -92,7 +92,15 @@ Adrian asked for options, memecoins, stocks and "everything", and for a better f
 - [ ] Markets boards filled with labelled ETF proxies for indices, commodities, rates and currencies (the index and commodity boards exist and wait on the key; rates and currency proxies are not added yet); real currency pairs if a Twelve Data key is added
 - [ ] Stock and ETF options on Alpaca's indicative feed
 - [ ] Option strategy templates: vertical spread, covered call, cash-secured put, straddle, strangle
-- [ ] Acceptance items 10 to 17
+- [ ] Acceptance items 10 to 17. State on 17 November 2026, all checked on flame.trading unless it says otherwise:
+  - 10 (icon): done. Adrian chose it; checked at 16 px on light and dark tab bars on the preview sheet, and the new `icon.svg` is what the site serves
+  - 11 (AAPL): waits on the Alpaca key
+  - 12 (BTC call): bought a 27 Nov 68,000 call; greeks and payoff shown. **Cash settlement at expiry is tested in the engine but has not yet been seen happen on the site.** The test browser's account holds 0.1 of the 18 Nov 64,000 call, which expires at 08:00 UTC on 18 November: open flame.trading there after that and confirm it settled at Deribit's delivery price with a notice
+  - 13 (SPY cash-secured put): waits on stock options. The same path was exercised with a BTC put in the engine tests and in the ticket preview
+  - 14 (uncovered call refused): done; the ticket gives the reason and the button is disabled
+  - 15 (Launchpad): done. New pools listed with liquidity and a risk read. A $100 order on a $4,150 pool was refused by the 2% cap with its reason; $75 showed 3.61% ($2.60) of price impact first and filled at exactly the previewed price. $100 on a $12,500 pool was checked the same way on the local build
+  - 16 (drained pool, "rugged"): tested in the engine; not yet seen on the site, because it needs a held pool to drain. The test browser's account holds a new token bought for this: look at it again in a day
+  - 17 (every board shows numbers): waits on the Alpaca key
 
 ## Phase 6: reviews before telling anyone
 
@@ -133,7 +141,9 @@ npx vercel@latest domains add flame.trading flame --scope stefan-code-js-project
 
 Notes for the next session:
 
-- **Where work stands (17 November 2026):** Phases 1, 2, 4 and 5 are done and deployed. Phase 5B: the new icon is shipped. Next, in the brief's order: crypto options (Deribit), memecoins, then stocks and stock options once the Alpaca key is in Vercel, then Phase 6.
+- **Where work stands (17 November 2026, evening):** Phases 1, 2, 4 and 5 are done and deployed. Phase 5B: the icon, crypto options (Deribit) and memecoins (Launchpad, tokens on the desk) are built, reviewed for silent failures, and live. What is left of 5B waits on Adrian adding `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` in Vercel: stocks live, the ETF proxy boards, stock options (and the stock-option fee default, from the venue's fee page), then the option strategy templates. After that, Phase 6 over everything.
+- A second silent-failure review, of the token code, was started on 17 November and had not reported when this was written. If its findings are not in `docs/decisions.md`, run `pr-review-toolkit:silent-failure-hunter` on `src/data/dex.ts`, `src/engine/pool.ts`, the token parts of `src/engine/engine.ts`, `src/desk/MemeTicket.tsx`, `src/desk/PoolPane.tsx` and `src/views/Launchpad.tsx` again.
+- Things to raise with Adrian before announcing: Deribit's, GeckoTerminal's, DexScreener's and RugCheck's terms for showing their data on a public site; Alpaca's for anonymous visitors; and that token names on Launchpad come straight from the chain and can be offensive (nothing filters them).
 - Last verified on flame.trading: acceptance items 1, 4, 6 and 7, and the live desk under the Content-Security-Policy (prices moving, seven venues in the book). Items 2 and 3 pass locally against live Binance data but were not re-run on the deployed site. Item 5 waits on the Alpaca key. Item 8 needs a real iPhone. Item 9 (offline) is unverified.
 - The installed app updates through a prompt ("A new version of Flame is ready"); a tab opened before a deploy keeps the old build until reloaded, and tabs from before the prompt was added need closing once.
 - A new `/api` function must go through `proxy()` in `api/_lib/http.ts` (known parameters only, GET only, cross-site refusal, rate limit), import its neighbours with a `.js` suffix, and any new upstream host the browser calls directly must be added to `connect-src` in `vercel.json`.
