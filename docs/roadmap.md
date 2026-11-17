@@ -82,7 +82,7 @@ Also in this phase, from the review of the data and state layers:
 
 Adrian asked for options, memecoins, stocks and "everything", and for a better favicon. The full brief, with engine rules, data sources and acceptance checks 10 to 17, is `docs/brief-02-every-market.md`. Read it before starting any item here. Work in the order the brief gives: favicon, crypto options, memecoins, stocks and the rest once the key exists, stock options, then Phase 6 over everything.
 
-- [ ] Favicon and app icon: at least four candidates on one preview sheet, Adrian picks, ship to every size and to `src/shell/Mark.tsx`. **In progress: waiting for Adrian's pick from the sheet**
+- [x] Favicon and app icon: five candidates on one preview sheet (`design/favicon-sheet.html`); Adrian picked C, the flame with a candlestick cut out of it, on 17 November 2026. Shipped to `public/icon.svg`, the 192, 512, maskable 512 and apple-touch PNGs, and `src/shell/Mark.tsx`. `node scripts/make-icons.mjs` redraws every size
 - [ ] `src/options/bs.ts`: Black-Scholes price, greeks and implied-volatility solver, unit-tested
 - [ ] Engine: option positions (long, covered call, cash-secured put, defined-risk spreads), cash settlement at expiry through the catch-up path, fees. A test for every rule in the brief
 - [ ] Crypto options from Deribit: verify the public API and CORS, adapter, chain view, ticket, payoff chart, position greeks
@@ -133,7 +133,7 @@ npx vercel@latest domains add flame.trading flame --scope stefan-code-js-project
 
 Notes for the next session:
 
-- **Where work stands (17 November 2026):** Phases 1, 2, 4 and 5 are done and deployed. Phase 5B has started with the favicon: the candidates are on a preview sheet and nothing ships until Adrian picks one. Next after that, in the brief's order: crypto options (Deribit), memecoins, then stocks and stock options once the Alpaca key is in Vercel, then Phase 6.
+- **Where work stands (17 November 2026):** Phases 1, 2, 4 and 5 are done and deployed. Phase 5B: the new icon is shipped. Next, in the brief's order: crypto options (Deribit), memecoins, then stocks and stock options once the Alpaca key is in Vercel, then Phase 6.
 - Last verified on flame.trading: acceptance items 1, 4, 6 and 7, and the live desk under the Content-Security-Policy (prices moving, seven venues in the book). Items 2 and 3 pass locally against live Binance data but were not re-run on the deployed site. Item 5 waits on the Alpaca key. Item 8 needs a real iPhone. Item 9 (offline) is unverified.
 - The installed app updates through a prompt ("A new version of Flame is ready"); a tab opened before a deploy keeps the old build until reloaded, and tabs from before the prompt was added need closing once.
 - A new `/api` function must go through `proxy()` in `api/_lib/http.ts` (known parameters only, GET only, cross-site refusal, rate limit), import its neighbours with a `.js` suffix, and any new upstream host the browser calls directly must be added to `connect-src` in `vercel.json`.

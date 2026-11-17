@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flame icon candidates</title>
+<style>
+  :root { --bg: #f4f1ec; --ink: #1a1815; --ink-2: #6b655d; --line: #d9d3ca; --card: #fbf9f6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .lede { margin: 0 0 20px; color: var(--ink-2); max-width: 70ch; }
+  .cand { border: 1px solid var(--line); border-radius: 10px; background: var(--card); margin-bottom: 14px; overflow: hidden; }
+  .cand-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 14px 10px; flex-wrap: wrap; }
+  .cand-id { font-weight: 700; font-size: 16px; }
+  .cand-name { font-weight: 600; }
+  .cand-idea { color: var(--ink-2); flex-basis: 100%; }
+  .strips { display: grid; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 760px) { .strips { grid-template-columns: 1fr; } }
+  .strip { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .strip.light { background: #dfe1e5; }
+  .strip.dark { background: #1f2023; }
+  .tab { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 9px 9px 0 0; font-size: 12px; width: 190px; }
+  .light .tab { background: #ffffff; color: #202124; }
+  .dark .tab { background: #35363a; color: #e8eaed; }
+  .tab span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sizes { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .sz { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .sz small { font-size: 11px; }
+  .light small { color: #5f6368; }
+  .dark small { color: #9aa0a6; }
+  canvas.px { width: 96px; height: 96px; image-rendering: pixelated; }
+  .rail { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 15px; }
+  .light .rail { background: #f6f4f0; color: #1a1815; }
+  .dark .rail { background: #131210; color: #ece7e0; }
+  .note { color: var(--ink-2); margin-top: 18px; max-width: 80ch; }
+</style>
+</head>
+<body>
+<h1>Flame icon candidates</h1>
+<p class="lede">Each candidate at 16, 32, 64 and 180 px on a light and a dark tab bar, next to the current icon. The blocky square is the 16 px icon as a standard (non-retina) screen draws it, magnified six times: that is the hardest test. The last item in each strip is the mark as it would sit in Flame's rail.</p>
+<div id="sheet"></div>
+<p class="note" id="note"></p>
+<script>
+const TILE = '#131210', AMBER = '#dd7418', ASH = '#ece7e0';
+const FLAME = 'M18.5 2C19.5 8.5 27 11.5 27 19.5C27 25.5 22.1 30 16 30C9.9 30 5 25.5 5 19.5C5 15.6 7 12.6 9.6 10.2C9.8 12.6 10.8 14.4 12.6 15.2C12 9.8 14 4.8 18.5 2Z';
+const PLAIN = 'M19.5 2C20 8.5 27 12 27 19.5C27 25.5 22.1 30 16 30C9.9 30 5 25.5 5 19.5C5 12.5 13.5 9 19.5 2Z';
+const tile = (fill) => `<rect width="32" height="32" rx="7" fill="${fill}"/>`;
+const candle = (x0, top) => { const x1 = x0 + 7; return `M${x0 + 1.5} 29Q${x0} 29 ${x0} 27.5V${top + 9.5}C${x0} ${top + 6.2} ${x0 + 4.6} ${top + 5.4} ${x1 - 1} ${top}C${x1 - 0.7} ${top + 2.8} ${x1} ${top + 5} ${x1} ${top + 9.5}V27.5Q${x1} 29 ${x1 - 1.5} 29Z`; };
+
+const CANDIDATES = [
+  {
+    id: 'Now', name: 'Current icon', idea: 'A small flame over a pale candle. For comparison.',
+    icon: `${tile(TILE)}<path d="M16 3.5c2.5 2.8 4.3 4.8 4.3 7.3a4.3 4.3 0 0 1-8.6 0c0-2.5 1.8-4.5 4.3-7.3z" fill="${AMBER}"/><rect x="11.5" y="16.5" width="9" height="9" rx="1.5" fill="${ASH}"/><path d="M16 25.5v3.5M16 14.5v2" stroke="${ASH}" stroke-width="1.6" stroke-linecap="round"/>`,
+    mark: `<path d="M16 2.5c2.8 3.1 4.8 5.3 4.8 8.1a4.8 4.8 0 0 1-9.6 0c0-2.8 2-5 4.8-8.1z" fill="${AMBER}"/><rect x="11" y="16.5" width="10" height="9.5" rx="1.5" fill="currentColor"/><path d="M16 26v3.5M16 14.5v2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`,
+  },
+  {
+    id: 'A', name: 'The book is a flame', idea: 'The heat ladder’s bars, stacked into a flame. The structure is Flame’s own order book.',
+    icon: `${tile(TILE)}<defs><clipPath id="fA"><path d="${PLAIN}"/></clipPath></defs><g clip-path="url(#fA)" fill="${AMBER}"><rect x="0" y="2" width="32" height="5.6"/><rect x="0" y="9.5" width="32" height="5.6"/><rect x="0" y="17" width="32" height="5.6"/><rect x="0" y="24.5" width="32" height="5.5"/></g>`,
+    mark: `<defs><clipPath id="mA"><path d="${PLAIN}"/></clipPath></defs><g clip-path="url(#mA)" fill="${AMBER}"><rect x="0" y="2" width="32" height="5.6"/><rect x="0" y="9.5" width="32" height="5.6"/><rect x="0" y="17" width="32" height="5.6"/><rect x="0" y="24.5" width="32" height="5.5"/></g>`,
+  },
+  {
+    id: 'B', name: 'Candles that burn', idea: 'Three candles of rising height, each top a tongue of flame. A rising market, on fire.',
+    icon: `${tile(TILE)}<g fill="${AMBER}"><path d="${candle(3.5, 15.5)}"/><path d="${candle(12.5, 9)}"/><path d="${candle(21.5, 2.5)}"/></g>`,
+    mark: `<g fill="${AMBER}"><path d="${candle(3.5, 15.5)}"/><path d="${candle(12.5, 9)}"/><path d="${candle(21.5, 2.5)}"/></g>`,
+  },
+  {
+    id: 'C', name: 'A candle inside the flame', idea: 'One solid flame; the space cut out of it is a single candlestick.',
+    icon: `${tile(TILE)}<path d="${FLAME}" fill="${AMBER}"/><rect x="13" y="16" width="6.4" height="8.4" rx="1.2" fill="${TILE}"/><path d="M16.2 12.2v4M16.2 24v3" stroke="${TILE}" stroke-width="2.2" stroke-linecap="round"/>`,
+    mark: `<path fill-rule="evenodd" d="${FLAME}M13 17.2a1.2 1.2 0 0 1 1.2-1.2h.9v-3.8a1.1 1.1 0 0 1 2.2 0V16h.9a1.2 1.2 0 0 1 1.2 1.2v6a1.2 1.2 0 0 1-1.2 1.2h-.9V27a1.1 1.1 0 0 1-2.2 0v-2.6h-.9a1.2 1.2 0 0 1-1.2-1.2z" fill="${AMBER}"/>`,
+  },
+  {
+    id: 'D', name: 'The lit F', idea: 'Flame’s initial. The top stroke has caught fire.',
+    icon: `${tile(TILE)}<path d="M7.5 11.5H14v16a1.5 1.5 0 0 1-1.5 1.5H9a1.5 1.5 0 0 1-1.5-1.5z" fill="${ASH}"/><path d="M14 16.5h7a1.5 1.5 0 0 1 1.500 1.500v2.800a1.5 1.5 0 0 1-1.500 1.500h-7z" fill="${ASH}"/><path d="M7.5 11.5V8.300C7.500 5.600 9.500 4 12 4H19.200C22.300 4 24.500 3 26 1C26.800 5.600 24.800 11.500 18.800 11.500Z" fill="${AMBER}"/>`,
+    mark: `<path d="M7.5 11.5H14v16a1.5 1.5 0 0 1-1.5 1.5H9a1.5 1.5 0 0 1-1.5-1.5z" fill="currentColor"/><path d="M14 16.5h7a1.5 1.5 0 0 1 1.500 1.500v2.800a1.5 1.5 0 0 1-1.500 1.500h-7z" fill="currentColor"/><path d="M7.5 11.5V8.300C7.500 5.600 9.500 4 12 4H19.200C22.300 4 24.500 3 26 1C26.800 5.600 24.800 11.500 18.800 11.500Z" fill="${AMBER}"/>`,
+  },
+  {
+    id: 'E', name: 'Ember tile', idea: 'The tile itself is the heat: an amber square with the flame and its candle in ash-black. The loudest in a row of tabs.',
+    icon: `${tile(AMBER)}<path d="${FLAME}" fill="${TILE}"/><rect x="13" y="16" width="6.4" height="8.4" rx="1.2" fill="${AMBER}"/><path d="M16.2 12.2v4M16.2 24v3" stroke="${AMBER}" stroke-width="2.2" stroke-linecap="round"/>`,
+    mark: `${tile(AMBER)}<path d="${FLAME}" fill="${TILE}"/><rect x="13" y="16" width="6.4" height="8.4" rx="1.2" fill="${AMBER}"/><path d="M16.2 12.2v4M16.2 24v3" stroke="${AMBER}" stroke-width="2.2" stroke-linecap="round"/>`,
+  },
+];
+
+const svg = (inner, size) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}">${inner}</svg>`;
+const uniq = (inner, tag) => inner.replace(/id="(\w+)"/g, `id="$1${tag}"`).replace(/url\(#(\w+)\)/g, `url(#$1${tag})`);
+let n = 0;
+const sheet = document.getElementById('sheet');
+for (const c of CANDIDATES) {
+  const card = document.createElement('section');
+  card.className = 'cand';
+  const strip = (theme) => `
+    <div class="strip ${theme}">
+      <div class="tab">${svg(uniq(c.icon, 't' + n++), 16)}<span>Flame: Desk</span></div>
+      <div class="sizes">
+        <div class="sz"><canvas class="px" width="16" height="16" data-c="${c.id}"></canvas><small>16 px, magnified</small></div>
+        ${[16, 32, 64, 180].map((s) => `<div class="sz">${svg(uniq(c.icon, 's' + n++), s)}<small>${s}</small></div>`).join('')}
+        <div class="sz"><div class="rail">${svg(uniq(c.mark, 'm' + n++), 24)}Flame</div><small>in the rail</small></div>
+      </div>
+    </div>`;
+  card.innerHTML = `<div class="cand-head"><span class="cand-id">${c.id}</span><span class="cand-name">${c.name}</span><span class="cand-idea">${c.idea}</span></div><div class="strips">${strip('light')}${strip('dark')}</div>`;
+  sheet.appendChild(card);
+}
+for (const cv of document.querySelectorAll('canvas.px')) {
+  const c = CANDIDATES.find((x) => x.id === cv.dataset.c);
+  const img = new Image();
+  img.onload = () => cv.getContext('2d').drawImage(img, 0, 0, 16, 16);
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg(c.icon, 16));
+}
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@ The tokens live in `src/styles/tokens.css`. This file is the reasoning behind th
 
 Flame's world is fire and candles. A candlestick is a candle; its wick can be lit. A market is hot where people are buying and cold where they are selling. Everything visual comes from that:
 
-- **The mark** is a candlestick with a flame for its upper wick (`src/shell/Mark.tsx`, `public/icon.svg`).
+- **The mark** is one solid flame with a single candlestick cut out of it: the candle is inside the fire. It is one bold shape that fills its tile, so it survives at 16 px in a browser tab, and it is flat: no gradient, glow or bevel. Adrian chose it on 17 November 2026 from five candidates (`design/favicon-sheet.html`), replacing a small flame over a pale candle that read as two blobs at 16 px. In the app (`src/shell/Mark.tsx`) it is the flame alone in `--flame`, with the surface showing through the candle. As an icon (`public/icon.svg` and the PNGs) it sits on the dark ash tile. `scripts/make-icons.mjs` draws every size from one geometry; the maskable icon is scaled to 80% so the flame stays inside the safe circle.
 - **Polarity is thermal.** Up, bids, buys and longs are hot (amber). Down, asks, sells and shorts are cold (blue).
 - **Liquidity is heat.** The order book is a heat ladder: the more size resting at a price, the more saturated the row.
 - **Everything else is ash.** Surfaces, text, borders and buttons are neutral, so that the only colour on screen is the market.
