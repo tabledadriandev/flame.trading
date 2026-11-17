@@ -43,6 +43,10 @@ const STORE = 'kv';
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 /** False when the browser refuses IndexedDB (some private windows). The UI says so. */
 export let persistent = true;
+/** Set when IndexedDB exists but would not open: stored data may be there and unreadable. */
+let openError: string | null = null;
+/** Documents that exist but could not be read. They are never written over. */
+const unreadable = new Set<string>();
 const memory = new Map<string, Envelope>();
 
 function open(): Promise<IDBDatabase | null> {
@@ -57,8 +61,9 @@ function open(): Promise<IDBDatabase | null> {
     try {
       req = indexedDB.open(DB_NAME, 1);
     } catch (err) {
-      console.warn('[flame] IndexedDB is not available; nothing will be kept after this tab closes', err);
+      console.warn('[flame] IndexedDB would not open', err);
       persistent = false;
+      openError = 'This browser would not open the storage Flame keeps your account in.';
       resolve(null);
       return;
     }
@@ -67,10 +72,13 @@ function open(): Promise<IDBDatabase | null> {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => {
-      console.warn('[flame] IndexedDB refused to open; nothing will be kept after this tab closes', req.error);
+      // The data may well be there. Report a failed read; do not present an empty store.
+      console.warn('[flame] IndexedDB refused to open', req.error);
       persistent = false;
+      openError = `This browser would not open the storage Flame keeps your account in${req.error?.message ? ` (${req.error.message})` : ''}.`;
       resolve(null);
     };
+    req.onblocked = () => console.warn('[flame] IndexedDB open is blocked by another tab');
   });
   return dbPromise;
 }
@@ -98,11 +106,16 @@ export type LoadResult<T> = { ok: true; data: T | undefined } | { ok: false; err
 export async function load<T>(key: string): Promise<LoadResult<T>> {
   try {
     const db = await open();
+    if (!db && openError) {
+      unreadable.add(key);
+      return { ok: false, error: openError };
+    }
     const env = db ? await tx<Envelope>('readonly', (s) => s.get(key)) : memory.get(key);
     if (env === undefined) return { ok: true, data: undefined };
     return { ok: true, data: migrate<T>(key, env) };
   } catch (err) {
     console.error(`[flame] could not read stored ${key}`, err);
+    unreadable.add(key);
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -115,20 +128,37 @@ export function setSaveErrorHandler(fn: (key: string, err: unknown) => void): vo
   onSaveError = fn;
 }
 
-async function write(key: string, data: unknown): Promise<void> {
+/** Write now; throws if the browser refuses. */
+async function writeStrict(key: string, data: unknown): Promise<void> {
   const env: Envelope = { v: SCHEMA_VERSION, data, savedAt: Date.now() };
+  const db = await open();
+  if (db) await tx('readwrite', (s) => s.put(env, key));
+  else if (openError) throw new Error(openError);
+  else memory.set(key, env);
+}
+
+async function write(key: string, data: unknown): Promise<void> {
   try {
-    const db = await open();
-    if (db) await tx('readwrite', (s) => s.put(env, key));
-    else memory.set(key, env);
+    await writeStrict(key, data);
   } catch (err) {
     console.error(`[flame] could not save ${key}`, err);
     onSaveError?.(key, err);
   }
 }
 
+let frozen = false;
+/** Stop all saving: another tab owns the account, or a backup was just imported and the page is reloading. */
+export function freezeSaves(): void {
+  frozen = true;
+  for (const timer of timers.values()) clearTimeout(timer);
+  timers.clear();
+  pending.clear();
+}
+
 /** Save a document soon. Rapid changes collapse into one write. */
 export function save(key: string, data: unknown, delay = 400): void {
+  // Never write defaults over a document that exists but could not be read.
+  if (frozen || unreadable.has(key)) return;
   pending.set(key, data);
   if (timers.has(key)) return;
   timers.set(
@@ -154,6 +184,7 @@ export function flush(): Promise<void> {
   return Promise.all(jobs).then(() => undefined);
 }
 
+/** Delete a document. Rejects if the browser refuses, so the caller can say so. */
 export async function remove(key: string): Promise<void> {
   const timer = timers.get(key);
   if (timer) clearTimeout(timer);
@@ -161,7 +192,9 @@ export async function remove(key: string): Promise<void> {
   pending.delete(key);
   const db = await open();
   if (db) await tx('readwrite', (s) => s.delete(key));
+  else if (openError) throw new Error(openError);
   else memory.delete(key);
+  unreadable.delete(key);
 }
 
 export const KEYS = ['account', 'settings', 'watchlists', 'layout', 'levels'] as const;
@@ -199,7 +232,16 @@ export function readBackup(raw: unknown): Record<string, unknown> {
   return out;
 }
 
+/**
+ * Replace the stored documents with a backup's. Saving is frozen first so a
+ * pending write cannot land on top of the import; the caller reloads the page.
+ * Rejects if any document could not be written.
+ */
 export async function importBackup(raw: unknown): Promise<void> {
   const docs = readBackup(raw);
-  for (const [key, data] of Object.entries(docs)) await write(key, data);
+  freezeSaves();
+  for (const [key, data] of Object.entries(docs)) {
+    unreadable.delete(key);
+    await writeStrict(key, data);
+  }
 }

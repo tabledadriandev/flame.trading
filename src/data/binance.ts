@@ -25,29 +25,47 @@ const BOOK_LEVELS = 1500;
 type Handler = (data: any) => void;
 
 let restIndex = 0;
+/** Set when Binance answers 429 or 418: no request goes out until this time, or the address gets banned. */
+let blockedUntil = 0;
+const REQUEST_TIMEOUT = 12_000;
 
 async function rest<T>(path: string): Promise<T> {
-  let lastError: unknown;
+  const wait = blockedUntil - Date.now();
+  if (wait > 0) throw new FeedError(`Binance asked Flame to slow down. Trying again in ${Math.ceil(wait / 1000)} s.`, 'binance', 429);
+  let lastError: FeedError | null = null;
   for (let i = 0; i < REST.length; i++) {
     const host = REST[(restIndex + i) % REST.length]!;
+    let res: Response;
     try {
-      const res = await fetch(host + path);
-      if (res.ok) {
-        restIndex = (restIndex + i) % REST.length;
-        return (await res.json()) as T;
-      }
-      // 4xx is our request, not the host: the fallback would say the same.
-      if (res.status >= 400 && res.status < 500 && res.status !== 451 && res.status !== 403 && res.status !== 429) {
-        throw new FeedError(`Binance rejected the request (${res.status}).`, 'binance', res.status);
-      }
-      lastError = new FeedError(`Binance answered ${res.status}.`, 'binance', res.status);
+      res = await fetch(host + path, { signal: AbortSignal.timeout(REQUEST_TIMEOUT) });
     } catch (err) {
-      if (err instanceof FeedError && err.status && err.status < 500 && ![403, 429, 451].includes(err.status)) throw err;
-      lastError = err;
+      // No answer at all (offline, blocked, timed out): the other host may still be reachable.
+      console.warn(`[flame] ${host} did not answer`, err);
+      lastError = new FeedError('Could not reach Binance. Check the connection.', 'binance');
+      continue;
     }
+    if (res.status === 429 || res.status === 418) {
+      const retry = Number(res.headers.get('retry-after')) || 60;
+      blockedUntil = Date.now() + retry * 1000;
+      throw new FeedError(`Binance asked Flame to slow down. Trying again in ${retry} s.`, 'binance', res.status);
+    }
+    if (res.ok) {
+      restIndex = (restIndex + i) % REST.length;
+      try {
+        return (await res.json()) as T;
+      } catch (err) {
+        console.warn(`[flame] ${host} sent an unreadable answer`, err);
+        throw new FeedError('Binance sent an answer Flame could not read.', 'binance', res.status);
+      }
+    }
+    if (res.status === 403 || res.status === 451 || res.status >= 500) {
+      // Blocked in this region, or the host is unwell: try the other one.
+      lastError = new FeedError(`Binance answered ${res.status}.`, 'binance', res.status);
+      continue;
+    }
+    throw new FeedError(`Binance rejected the request (${res.status}).`, 'binance', res.status);
   }
-  if (lastError instanceof FeedError) throw lastError;
-  throw new FeedError('Could not reach Binance. Check the connection.', 'binance');
+  throw lastError ?? new FeedError('Could not reach Binance. Check the connection.', 'binance');
 }
 
 type Kline = [number, string, string, string, string, string, number, string, number, string, string, string];
@@ -72,7 +90,12 @@ class BookSync {
   private loading = false;
   private buffer: DepthEvent[] = [];
   private dead = false;
+  /** Snapshot retries back off from 1 s to 30 s; a retry on every diff would be ten requests a second. */
+  private nextTry = 0;
+  private delay = 1_000;
+  private problem: string | null = null;
   readonly listeners = new Set<(b: BookSnapshot) => void>();
+  readonly problemListeners = new Set<(message: string | null) => void>();
   private emit = throttle(() => this.publish(), 120);
 
   constructor(private readonly symbol: string) {}
@@ -88,11 +111,21 @@ class BookSync {
     this.dead = true;
   }
 
+  currentProblem(): string | null {
+    return this.problem;
+  }
+
+  private setProblem(message: string | null): void {
+    if (message === this.problem) return;
+    this.problem = message;
+    for (const cb of this.problemListeners) cb(message);
+  }
+
   onDiff(ev: DepthEvent): void {
     if (!this.synced) {
       this.buffer.push(ev);
       if (this.buffer.length > 2_000) this.buffer.shift();
-      if (!this.loading) void this.load();
+      if (!this.loading && Date.now() >= this.nextTry) void this.load();
       return;
     }
     if (ev.u <= this.lastId) return;
@@ -140,11 +173,17 @@ class BookSync {
         for (const ev of this.buffer) if (ev.u > this.lastId) this.apply(ev);
         this.buffer = [];
         this.synced = true;
+        this.delay = 1_000;
+        this.setProblem(null);
         this.emit();
         return;
       }
+      if (!this.dead) throw new FeedError('The book snapshot kept arriving out of step with the stream.', 'binance');
     } catch (err) {
-      console.warn(`[flame] Binance book snapshot for ${this.symbol} failed; retrying on the next update`, err);
+      console.warn(`[flame] Binance book snapshot for ${this.symbol} failed; next try in ${this.delay} ms`, err);
+      this.nextTry = Date.now() + this.delay;
+      this.delay = Math.min(30_000, this.delay * 2);
+      this.setProblem(err instanceof FeedError ? err.message : 'The book snapshot could not be loaded.');
     } finally {
       this.loading = false;
     }
@@ -201,7 +240,12 @@ export class BinanceAdapter implements VenueAdapter {
         console.warn('[flame] Binance sent something that is not JSON', raw.slice(0, 120));
         return;
       }
-      if (!msg.stream) return; // a reply to SUBSCRIBE
+      if (!msg.stream) {
+        // A reply to SUBSCRIBE. An error here means a stream we think we have is not coming.
+        const reply = msg as { error?: { code?: number; msg?: string } };
+        if (reply.error) console.warn('[flame] Binance refused a subscription', reply.error);
+        return;
+      }
       const handlers = this.streams.get(msg.stream);
       if (handlers) for (const h of handlers) h(msg.data);
     },
@@ -300,7 +344,7 @@ export class BinanceAdapter implements VenueAdapter {
     });
   }
 
-  subscribeBook(symbol: string, on: (b: BookSnapshot) => void): Unsubscribe {
+  subscribeBook(symbol: string, on: (b: BookSnapshot) => void, onProblem?: (message: string | null) => void): Unsubscribe {
     let book = this.books.get(symbol);
     let stop: Unsubscribe | null = null;
     if (!book) {
@@ -313,9 +357,14 @@ export class BinanceAdapter implements VenueAdapter {
       (book as BookSync & { stop?: Unsubscribe }).stop = stop;
     }
     book.listeners.add(on);
+    if (onProblem) {
+      book.problemListeners.add(onProblem);
+      onProblem(book.currentProblem());
+    }
     const b = book as BookSync & { stop?: Unsubscribe };
     return () => {
       b.listeners.delete(on);
+      if (onProblem) b.problemListeners.delete(onProblem);
       if (b.listeners.size === 0) {
         b.stop?.();
         b.close();
@@ -329,7 +378,7 @@ export class BinanceAdapter implements VenueAdapter {
       if (!d || d.c === undefined) return;
       const last = +d.c;
       const open = +d.o;
-      on({ last, changePct: open > 0 ? ((last - open) / open) * 100 : 0, t: d.E });
+      on({ last, changePct: open > 0 ? ((last - open) / open) * 100 : NaN, t: d.E });
     });
   }
 }

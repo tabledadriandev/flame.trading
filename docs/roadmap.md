@@ -11,21 +11,28 @@ Build in this order. Each phase ends with something a person can use, deployed. 
 - [x] `api/health.ts`
 - [x] The spec: teardown, product spec, design system, data sources, this roadmap
 
-## Phase 1: a live chart and a real paper trade
+## Phase 1: a live chart and a real paper trade (done 17 November 2026)
 
 The smallest thing worth using: watch BTC, place a trade, see the P&L.
 
-- [ ] Verify Binance REST and WebSocket from a browser; update `docs/data-sources.md`
-- [ ] `src/data`: adapter interface, shared WebSocket client (heartbeat, backoff, resubscribe), Binance adapter (candles, trades, book)
-- [ ] `src/engine`: account, spot and perp positions, market / limit / stop orders, fees, liquidation, trades with R. Pure functions, unit tests for every rule in the spec
-- [ ] `src/state`: zustand stores, IndexedDB persistence with a schema version
-- [ ] Chart pane: candles, timeframes, crosshair readout, volume
-- [ ] Watchlist pane with live prices
-- [ ] Ticket: market and limit, size in units or dollars, preview sentence
-- [ ] Positions drawer: positions, orders, fills
-- [ ] Feed status in every pane (live, reconnecting, down)
-- [ ] `?sim=1` simulated feed, labelled, for offline demos and screenshots
-- [ ] Deploy; check acceptance items 1 and 4 on flame.trading
+- [x] Verify Binance REST and WebSocket from a browser; update `docs/data-sources.md`
+- [x] `src/data`: adapter interface, shared WebSocket client (heartbeat, backoff, resubscribe), Binance adapter (candles, trades, book)
+- [x] `src/engine`: account, spot and perp positions, market / limit / stop orders, fees, liquidation, trades with R. Pure functions, unit tests for every rule in the spec
+- [x] `src/state`: zustand stores, IndexedDB persistence with a schema version
+- [x] Chart pane: candles, timeframes, crosshair readout, volume
+- [x] Watchlist pane with live prices
+- [x] Ticket: market and limit, size in units or dollars, preview sentence (stop orders, take-profit, stop-loss, size-by-risk and leverage landed here too)
+- [x] Positions drawer: positions, orders, fills
+- [x] Feed status in every pane (live, reconnecting, down)
+- [x] `?sim=1` simulated feed, labelled, for offline demos and screenshots (it keeps its own database, so it never touches the real paper account)
+- [x] Deploy; check acceptance items 1 and 4 on flame.trading
+
+Also in this phase, from the review of the data and state layers:
+
+- One tab at a time owns the account (Web Locks); a second tab offers to take over instead of saving over the first
+- Any gap in prices (Flame closed, laptop asleep, feed dropped) is replayed from candles before live prices resume
+- Binance requests time out, honour `Retry-After`, and the book snapshot backs off instead of retrying on every update
+- A stored document that cannot be read is never overwritten with defaults
 
 ## Phase 2: the desk Flame is for
 

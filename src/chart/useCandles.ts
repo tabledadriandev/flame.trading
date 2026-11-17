@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { route } from '../data/feed';
 import { onFrame } from '../data/schedule';
-import { FeedError, type Candle, type Timeframe } from '../data/types';
+import { FeedError, tfMs, type Candle, type Timeframe } from '../data/types';
 
 // Candles for one instrument and timeframe: history over REST, the bar in
 // progress over the stream. Cached in memory only, never stored.
@@ -16,10 +16,13 @@ export interface CandleFeed {
   loadOlder: () => void;
 }
 
-function merge(base: Candle[], incoming: Candle[]): Candle[] {
+/** Join older bars already held with a fresh page, but never across a hole: a chart must not draw a gap as continuous. */
+export function merge(base: Candle[], incoming: Candle[], ms: number): Candle[] {
   if (incoming.length === 0) return base;
   const firstNew = incoming[0]!.t;
   const keep = base.filter((c) => c.t < firstNew);
+  const lastKept = keep[keep.length - 1];
+  if (lastKept && firstNew - lastKept.t > ms * 1.5) return incoming;
   return [...keep, ...incoming];
 }
 
@@ -61,7 +64,7 @@ export function useCandles(instrumentId: string, tf: Timeframe, limit = 1000): C
         .then((rows) => {
           if (!alive) return;
           // Keep older bars already paged in; replace everything the fresh page covers.
-          data.current = merge(data.current, rows);
+          data.current = merge(data.current, rows, tfMs(tf));
           publish();
           setState('ready');
           setError(null);
@@ -79,7 +82,11 @@ export function useCandles(instrumentId: string, tf: Timeframe, limit = 1000): C
       const last = cur[cur.length - 1];
       if (!last) return; // history has not arrived; the stream alone is not a chart
       if (c.t === last.t) data.current = [...cur.slice(0, -1), c];
-      else if (c.t > last.t) data.current = [...cur, c];
+      else if (c.t > last.t + tfMs(tf) * 1.5) {
+        // Bars are missing between the chart and this one (a sleep, a dropped stream): fetch them.
+        void load();
+        return;
+      } else if (c.t > last.t) data.current = [...cur, c];
       else return;
       onFrame(publish);
     });
@@ -120,8 +127,12 @@ export function useCandles(instrumentId: string, tf: Timeframe, limit = 1000): C
         setCandles(data.current);
       })
       .catch((err: unknown) => {
+        // Not the end of history, just a failed request: allow another try after a pause.
         console.warn(`[flame] older candles for ${forKey} failed`, err);
         older.current.done = true;
+        setTimeout(() => {
+          if (current.current === forKey) older.current.done = false;
+        }, 15_000);
       })
       .finally(() => {
         older.current.busy = false;

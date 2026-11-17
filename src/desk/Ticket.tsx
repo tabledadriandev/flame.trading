@@ -6,7 +6,8 @@ import { dollars, money, parseNumber, price as fmtPrice, qty as fmtQty, rr } fro
 import { useMedia } from '../lib/hooks';
 import { useAccount } from '../state/account';
 import { useQuoteSlow, useValuation } from '../state/hooks';
-import { quoteFor } from '../state/live';
+import { fillBasis, quoteFor } from '../state/live';
+import { route } from '../data/feed';
 import { useMarket } from '../state/market';
 import { engineSettings, useSettings } from '../state/settings';
 import { useTicket, type SizeMode } from '../state/ticket';
@@ -332,6 +333,9 @@ export function Ticket() {
         <div className="ticket-preview" role="status" aria-live="polite">
           {preview.problem ? <span className="ticket-problem">{preview.problem}</span> : preview.sentence}
           {!preview.problem && closedMarket ? ' The market is closed; the order waits for the open.' : ''}
+          {!preview.problem && t.type !== 'limit' && route(id)?.adapter.hasBook && fillBasis(id) === 'last'
+            ? ' The order book is not synced right now, so this fills at the last price plus one basis point instead of walking the book.'
+            : ''}
         </div>
 
         {touch ? (

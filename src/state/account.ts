@@ -24,6 +24,7 @@ import {
   type Review,
 } from '../engine/types';
 import { dollars, money, qty, rr } from '../lib/format';
+import { lastPrice } from './clock';
 import { save } from './persist';
 import { engineSettings } from './settings';
 import { toast } from './toasts';
@@ -37,6 +38,8 @@ interface AccountStore {
   ready: boolean;
   /** Set when the stored account could not be read; the app refuses to overwrite it. */
   loadError: string | null;
+  /** True when another tab or window owns the account; this one stands down. */
+  elsewhere: boolean;
   live: Account;
   practice: Account;
   place(input: OrderInput, quote: Quote | undefined, book?: Book, t?: number): EngineEvent[];
@@ -44,7 +47,7 @@ interface AccountStore {
   amend(id: string, patch: { limit?: number; stop?: number; qty?: number }, book?: Book): void;
   brackets(key: string, b: { tp?: number | null; sl?: number | null }, book?: Book, t?: number): void;
   onQuote(instrumentId: string, quote: Quote, book?: Book): void;
-  onBar(instrumentId: string, bar: { t: number; o: number; h: number; l: number; c: number }, book?: Book, away?: boolean): EngineEvent[];
+  onBar(instrumentId: string, bar: { t: number; o: number; h: number; l: number; c: number }, book?: Book, away?: boolean, asOf?: number): EngineEvent[];
   funding(instrumentId: string, rate: number, mark: number): void;
   settle(instrumentId: string, payout: number): void;
   review(tradeId: string, review: Review, book?: Book): void;
@@ -56,8 +59,10 @@ interface AccountStore {
 
 function persist(a: Account): void {
   // Never write over a stored account that could not be read.
-  if (useAccount.getState().loadError) return;
-  save('account', { ...a, lastSeen: Date.now() });
+  if (useAccount.getState().loadError || useAccount.getState().elsewhere) return;
+  // lastSeen is the last moment a price was actually watched, not the wall clock:
+  // an edit made while the feed is down must not hide the gap from the catch-up.
+  save('account', { ...a, lastSeen: lastPrice() || a.lastSeen });
 }
 
 export const useAccount = create<AccountStore>((set, get) => {
@@ -73,6 +78,7 @@ export const useAccount = create<AccountStore>((set, get) => {
   return {
     ready: false,
     loadError: null,
+    elsewhere: false,
     live: createAccount(),
     practice: createAccount(),
 
@@ -93,10 +99,10 @@ export const useAccount = create<AccountStore>((set, get) => {
       if (!isExposed(a, id)) return;
       commit(book, evaluate(a, id, quote, engineSettings()));
     },
-    onBar(id, bar, book = 'live', away = false) {
+    onBar(id, bar, book = 'live', away = false, asOf) {
       const a = get()[book];
       if (!isExposed(a, id)) return [];
-      return commit(book, onBar(a, id, bar, engineSettings(), away), away);
+      return commit(book, onBar(a, id, bar, engineSettings(), away, asOf), away);
     },
     funding(id, rate, mark) {
       commit('live', applyFunding(get().live, id, rate, mark, engineSettings()));
@@ -132,7 +138,7 @@ export const useAccount = create<AccountStore>((set, get) => {
 /** Save the heartbeat: the engine replays candles after this moment on the next visit. */
 export function saveHeartbeat(): void {
   const s = useAccount.getState();
-  if (s.ready && !s.loadError) persist(s.live);
+  if (s.ready && !s.loadError && !s.elsewhere) persist(s.live);
 }
 
 function describe(e: EngineEvent & { type: 'fill' }): string {

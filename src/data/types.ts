@@ -49,7 +49,7 @@ export interface BookSnapshot {
 
 export interface Ticker {
   last: number;
-  /** Change against the reference the venue uses (24 hours ago for crypto, previous close for stocks). */
+  /** Change against the reference the venue uses (24 hours ago for crypto, previous close for stocks). NaN while unknown. */
   changePct: number;
   t: number;
   /** Exchange session state, for venues that close. */
@@ -75,7 +75,8 @@ export interface VenueAdapter {
   candles(symbol: string, tf: Timeframe, query?: CandleQuery): Promise<Candle[]>;
   subscribeCandles(symbol: string, tf: Timeframe, on: (c: Candle) => void): Unsubscribe;
   subscribeTrades(symbol: string, on: (t: Tick[]) => void): Unsubscribe;
-  subscribeBook(symbol: string, on: (b: BookSnapshot) => void): Unsubscribe;
+  /** `onProblem` hears why the book is not syncing (null once it is), so the pane can say so. */
+  subscribeBook(symbol: string, on: (b: BookSnapshot) => void, onProblem?: (message: string | null) => void): Unsubscribe;
   subscribeTicker(symbol: string, on: (t: Ticker) => void): Unsubscribe;
   status(): FeedStatus;
   onStatus(cb: (s: FeedStatus) => void): Unsubscribe;

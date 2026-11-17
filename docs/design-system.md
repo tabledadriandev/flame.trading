@@ -35,6 +35,10 @@ If you find yourself reaching for a third colour, the answer is a label, a weigh
 | `--hot` | `#c2570a` | `#dd7418` | Up, bid, buy, long |
 | `--cold` | `#1f6fd1` | `#3d8ce3` | Down, ask, sell, short |
 | `--hot-wash` / `--cold-wash` | 12% | 16% | Tick flashes, row tints, the lightest step of a heat ramp |
+| `--hot-text` | `#a04606` | `#dd7418` | Hot as small text (P&L, change): 5.1:1 or better on every surface |
+| `--cold-text` | `#1a5fb6` | `#3d8ce3` | Cold as small text: 5.1:1 or better on every light surface, 4.5:1 or better on dark |
+
+Marks (candles, bars, ladder rows) use `--hot` and `--cold`. Numbers set in the hue use `--hot-text` and `--cold-text` (the `.hot` and `.cold` classes), because the light-theme mark colours are 3.7–4.6:1 against the light surfaces: enough for a mark, not for 12 px text.
 
 Light is a neutral wood-ash grey, not cream. Dark is a warm charcoal, not blue-black. The theme follows the system and can be overridden with `data-theme="light"` or `"dark"` on `<html>` (`src/lib/theme.ts`).
 

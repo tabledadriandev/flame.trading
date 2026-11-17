@@ -415,6 +415,14 @@ function tryOrder(d: Draft, o: Order, q: Quote, away?: boolean): void {
   }
 }
 
+/** In a catch-up, an order counts only if it (or, for a bracket, its position) existed at `asOf`. */
+function existedAt(d: Draft, o: Order, asOf: number | undefined): boolean {
+  if (asOf === undefined) return true;
+  if (o.role === 'entry') return o.createdAt <= asOf;
+  const pos = d.a.positions[posKey(o.instrument, o.mode)];
+  return pos !== undefined && pos.openedAt <= asOf;
+}
+
 function liquidate(d: Draft, pos: Position, price: number, t: number, away?: boolean): void {
   // The loss to the liquidation price plus the maintenance margin that was
   // left (taken as the liquidation fee) is exactly the margin.
@@ -426,10 +434,11 @@ function liquidate(d: Draft, pos: Position, price: number, t: number, away?: boo
   attach(d, tr, recordFill(d, order, tr.id, pos.qty, price, fee, 'liquidation', t, away));
 }
 
-function step(d: Draft, instrument: string, q: Quote, away?: boolean): void {
+function step(d: Draft, instrument: string, q: Quote, away?: boolean, asOf?: number): void {
   for (const mode of ['spot', 'lev'] as const) {
     const pos = d.a.positions[posKey(instrument, mode)];
-    if (!pos) continue;
+    // A replay of old bars must not touch what did not exist when they printed.
+    if (!pos || (asOf !== undefined && pos.openedAt > asOf)) continue;
     const tr = getTrade(d, pos.tradeId);
     const u = unrealised(pos, q.last);
     if (tr && (u < tr.mae || u > tr.mfe)) putTrade(d, { ...tr, mae: Math.min(tr.mae, u), mfe: Math.max(tr.mfe, u) });
@@ -441,7 +450,8 @@ function step(d: Draft, instrument: string, q: Quote, away?: boolean): void {
       }
     }
   }
-  for (const id of d.a.orders.filter((o) => isWorking(o) && o.instrument === instrument).map((o) => o.id)) {
+  const eligible = (o: Order) => isWorking(o) && o.instrument === instrument && existedAt(d, o, asOf);
+  for (const id of d.a.orders.filter(eligible).map((o) => o.id)) {
     const o = getOrder(d, id);
     if (o && isWorking(o)) tryOrder(d, o, q, away);
   }
@@ -578,16 +588,17 @@ export function isExposed(a: Account, instrument: string): boolean {
   );
 }
 
-function nearestTrigger(d: Draft, instrument: string, from: number, to: number): number | null {
+function nearestTrigger(d: Draft, instrument: string, from: number, to: number, asOf?: number): number | null {
   const up = to > from;
   const candidates: number[] = [];
   for (const o of d.a.orders) {
     if (!isWorking(o) || o.instrument !== instrument) continue;
+    if (!existedAt(d, o, asOf)) continue;
     if (o.type === 'stop' && o.stop !== undefined && (o.side === 'buy') === up) candidates.push(o.stop);
     if (o.type === 'limit' && o.limit !== undefined && (o.side === 'sell') === up) candidates.push(o.limit);
   }
   const lev = d.a.positions[posKey(instrument, 'lev')];
-  if (lev) {
+  if (lev && !(asOf !== undefined && lev.openedAt > asOf)) {
     const liq = positionLiquidationPrice(lev, rulesFor(lev.cls, d.s).mmr);
     if (liq !== null && liq > 0 && (lev.dir === 'short') === up) candidates.push(liq);
   }
@@ -610,21 +621,23 @@ export function onBar(
   bar: { t: number; o: number; h: number; l: number; c: number },
   s: EngineSettings,
   away?: boolean,
+  /** For a catch-up: ignore orders placed and positions opened after this moment. */
+  asOf?: number,
 ): Result {
   const d = draft(a, s);
   const path = barPath(bar);
   let tick = 0;
   const at = (p: number): Quote => ({ bid: p, ask: p, last: p, t: bar.t + tick++ });
   let cur = path[0]!;
-  step(d, instrument, at(cur), away);
+  step(d, instrument, at(cur), away, asOf);
   for (const target of path.slice(1)) {
     for (let guard = 0; guard < 100; guard++) {
-      const next = nearestTrigger(d, instrument, cur, target);
+      const next = nearestTrigger(d, instrument, cur, target, asOf);
       if (next === null) break;
-      step(d, instrument, at(next), away);
+      step(d, instrument, at(next), away, asOf);
       cur = next;
     }
-    step(d, instrument, at(target), away);
+    step(d, instrument, at(target), away, asOf);
     cur = target;
   }
   return finish(d);

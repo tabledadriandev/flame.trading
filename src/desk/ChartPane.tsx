@@ -70,8 +70,8 @@ export function ChartPane() {
           <span className="chart-last num" data-flash={flash ?? undefined}>
             {q ? price(q.last) : '—'}
           </span>
-          <span className={`num ${q ? (up ? 'hot' : 'cold') : ''}`} title={i.kind === 'crypto' ? 'Change over the last 24 hours' : 'Change since the previous close'}>
-            {q ? pct(q.changePct) : ''}
+          <span className={`num ${q && Number.isFinite(q.changePct) ? (up ? 'hot' : 'cold') : ''}`} title={i.kind === 'crypto' ? 'Change over the last 24 hours' : 'Change since the previous close'}>
+            {q && Number.isFinite(q.changePct) ? pct(q.changePct) : ''}
           </span>
           <FeedBadge instrumentId={id} />
           <div className="pane-tools">

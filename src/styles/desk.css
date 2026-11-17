@@ -142,6 +142,12 @@
   box-shadow: inset 2px 0 0 var(--ink);
 }
 
+.watch-row[data-stale='true'] .watch-last,
+.watch-row[data-stale='true'] .watch-chg {
+  color: var(--ink-2);
+  font-style: italic;
+}
+
 .watch-row:focus-visible {
   outline-offset: -2px;
 }

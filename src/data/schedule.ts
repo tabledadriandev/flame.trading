@@ -6,6 +6,12 @@ type Job = () => void;
 
 const pending = new Set<Job>();
 let scheduled = false;
+let onError: ((err: unknown) => void) | null = null;
+
+/** A failed batch may have dropped a price the engine needed; the app tells the user. */
+export function setFrameErrorHandler(fn: (err: unknown) => void): void {
+  onError = fn;
+}
 
 function run(): void {
   scheduled = false;
@@ -16,6 +22,7 @@ function run(): void {
       job();
     } catch (err) {
       console.error('[flame] a batched feed update failed', err);
+      onError?.(err);
     }
   }
 }

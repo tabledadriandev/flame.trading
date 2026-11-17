@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { route } from '../data/feed';
 import { instrument } from '../data/instruments';
-import { useFlash } from '../lib/hooks';
+import { useFlash, useNow } from '../lib/hooks';
 import { pct, price } from '../lib/format';
-import { useMarket } from '../state/market';
+import { isStale, useMarket } from '../state/market';
 import { activeItems, useWatchlists } from '../state/watchlists';
 import { Pane, PaneState } from '../ui/controls';
 import { FeedBadge } from '../ui/FeedBadge';
@@ -35,6 +35,12 @@ export function useSpark(id: string): number[] | null {
         .catch((err: unknown) => {
           // The row still shows its live price; only the small chart is missing.
           console.warn(`[flame] sparkline for ${id} failed`, err);
+          // A day's sparkline that is over half an hour old no longer describes the day.
+          const old = sparks.get(id);
+          if (old && Date.now() - old.at > 3 * SPARK_TTL) {
+            sparks.delete(id);
+            if (alive) setPoints(null);
+          }
         });
     };
     load();
@@ -62,27 +68,30 @@ export function Spark({ points, up, width = 44, height = 18 }: { points: number[
   );
 }
 
-function Row({ id, selected }: { id: string; selected: boolean }) {
+function Row({ id, selected, now }: { id: string; selected: boolean; now: number }) {
   const q = useMarket((s) => s.quotes[id]);
   const select = useMarket((s) => s.select);
   const flash = useFlash(q?.last);
   const spark = useSpark(id);
   const i = instrument(id);
+  const known = q !== undefined && Number.isFinite(q.changePct);
   const up = (q?.changePct ?? 0) >= 0;
+  const stale = q !== undefined && isStale(q, now);
   return (
     <button
       type="button"
       className="watch-row"
       aria-current={selected ? 'true' : undefined}
+      data-stale={stale ? 'true' : undefined}
       onClick={() => select(id)}
-      title={i.name}
+      title={stale ? `${i.name}. This price is old: nothing has arrived for a while.` : i.name}
     >
       <span className="watch-sym">{i.symbol}</span>
       <Spark points={spark} up={up} />
       <span className="watch-last num" data-flash={flash ?? undefined}>
         {q ? price(q.last) : '—'}
       </span>
-      <span className={`watch-chg num ${q ? (up ? 'hot' : 'cold') : ''}`}>{q ? pct(q.changePct) : '—'}</span>
+      <span className={`watch-chg num ${known && !stale ? (up ? 'hot' : 'cold') : ''}`}>{stale ? 'Old' : q ? pct(q.changePct) : '—'}</span>
     </button>
   );
 }
@@ -94,6 +103,7 @@ export function Watchlist() {
   const setActive = useWatchlists((s) => s.setActive);
   const selected = useMarket((s) => s.instrument);
   const first = items[0];
+  const now = useNow(2_000);
   return (
     <Pane
       label="Watchlist"
@@ -125,7 +135,7 @@ export function Watchlist() {
               <span>Change</span>
             </div>
             {items.map((id) => (
-              <Row key={id} id={id} selected={id === selected} />
+              <Row key={id} id={id} selected={id === selected} now={now} />
             ))}
           </div>
         )}

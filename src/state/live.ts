@@ -4,6 +4,8 @@ import type { BookSnapshot, FeedStatus, Tick, Unsubscribe } from '../data/types'
 import { isExposed } from '../engine/engine';
 import type { Quote } from '../engine/types';
 import { saveHeartbeat, useAccount } from './account';
+import { MIN_GAP, catchUp } from './away';
+import { lastPrice, notePrice } from './clock';
 import { isStale, useMarket, type QuoteInfo } from './market';
 import { activeItems, useWatchlists } from './watchlists';
 
@@ -19,6 +21,35 @@ let pending: Record<string, QuoteInfo> = {};
 let deskBook: BookSnapshot | null = null;
 let deskFor: string | null = null;
 let deskSubs: Unsubscribe[] = [];
+
+let replaying = false;
+
+/**
+ * Hand a price to the engine. If prices have not been arriving for a while
+ * (Flame was closed, the machine slept, the feed dropped), the candles that
+ * were missed are replayed first, and live prices wait until that is done so
+ * an old stop is not filled at today's price.
+ */
+function engineQuote(id: string, quote: Quote): void {
+  if (replaying) return;
+  const now = Date.now();
+  const prev = lastPrice();
+  if (prev > 0 && now - prev > MIN_GAP) {
+    replaying = true;
+    void catchUp(prev).finally(() => {
+      replaying = false;
+      notePrice(Date.now());
+    });
+    return;
+  }
+  notePrice(now);
+  useAccount.getState().onQuote(id, quote);
+}
+
+/** 'book' when a market order on this instrument would walk live depth, 'last' when it would fill at the last price. */
+export function fillBasis(id: string): 'book' | 'last' {
+  return id === deskFor && deskBook !== null && Date.now() - deskBook.t < 5_000 ? 'book' : 'last';
+}
 
 function flushQuotes(): void {
   const batch = pending;
@@ -60,10 +91,14 @@ function onDeskTrades(id: string, ticks: Tick[]): void {
   if (!lastTick) return;
   const prev = pending[id] ?? useMarket.getState().quotes[id];
   const r = route(id);
-  pushQuote(id, { last: lastTick.p, changePct: prev?.changePct ?? 0, t: Date.now(), kind: r?.adapter.kind ?? 'live' });
+  // Until the ticker has reported the day's change it is unknown, not zero.
+  pushQuote(id, { last: lastTick.p, changePct: prev?.changePct ?? NaN, t: Date.now(), kind: r?.adapter.kind ?? 'live' });
 
   const account = useAccount.getState();
-  if (!isExposed(account.live, id)) return;
+  if (!isExposed(account.live, id)) {
+    notePrice(Date.now());
+    return;
+  }
   // Stops trigger on the last trade: show the engine the batch's extremes, then where it ended.
   let lo = lastTick.p;
   let hi = lastTick.p;
@@ -73,7 +108,7 @@ function onDeskTrades(id: string, ticks: Tick[]): void {
   }
   const base = quoteFor(id);
   if (!base) return;
-  for (const p of new Set([lo, hi, lastTick.p])) account.onQuote(id, { ...base, last: p });
+  for (const p of new Set([lo, hi, lastTick.p])) engineQuote(id, { ...base, last: p });
 }
 
 function selectDesk(id: string): void {
@@ -90,10 +125,9 @@ function selectDesk(id: string): void {
       r.adapter.subscribeBook(r.symbol, (b) => {
         deskBook = b;
         // A resting limit fills when the opposite best quote reaches it, even with no trade.
-        const account = useAccount.getState();
-        if (isExposed(account.live, id)) {
+        if (isExposed(useAccount.getState().live, id)) {
           const q = quoteFor(id);
-          if (q) account.onQuote(id, q);
+          if (q) engineQuote(id, q);
         }
       }),
     );
@@ -125,7 +159,7 @@ function reconcile(): void {
         pushQuote(id, { last: t.last, changePct: t.changePct, t: Date.now(), kind: r.adapter.kind, ...(t.open !== undefined ? { open: t.open } : {}) });
         // Instruments off the desk have no book here: the engine fills them at the last price.
         if (id !== deskFor || !r.adapter.hasBook) {
-          useAccount.getState().onQuote(id, { bid: t.last, ask: t.last, last: t.last, t: Date.now(), ...(t.open !== undefined ? { open: t.open } : {}) });
+          engineQuote(id, { bid: t.last, ask: t.last, last: t.last, t: Date.now(), ...(t.open !== undefined ? { open: t.open } : {}) });
         }
       }),
     );
@@ -167,9 +201,13 @@ export function startLive(): void {
   window.addEventListener('online', setOnline);
   window.addEventListener('offline', setOnline);
 
-  // The heartbeat marks the last moment prices were being watched.
+  // The heartbeat stores the last moment a price arrived, so the next visit knows what it missed.
+  let saved = 0;
   setInterval(() => {
-    const feeds = Object.values(useMarket.getState().feeds);
-    if (feeds.some((f) => f === 'live')) saveHeartbeat();
+    const seen = lastPrice();
+    if (seen > saved && !replaying) {
+      saved = seen;
+      saveHeartbeat();
+    }
   }, 5_000);
 }

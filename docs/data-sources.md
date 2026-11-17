@@ -1,6 +1,6 @@
 # Data sources
 
-**Status of this document: unverified.** Everything below was written from knowledge of these APIs. The sandbox that produced the baseline could not reach any of them, so not one call was tested. Before building on a source, make a real request, compare it with this page, and correct the page. Mark each section "Verified <date>" when you have.
+**Status of this document: verified section by section.** It was first written from knowledge of these APIs, untested. Each source is now checked with a real request before Flame builds on it, and its section is marked "Verified <date>" with what was found. A section without that mark has not been tested: test it before relying on it.
 
 Two ways data reaches Flame:
 
@@ -39,6 +39,23 @@ Primary venue for charts, tape and fills: **Binance spot**. The others feed the 
 | OKX | `wss://ws.okx.com:8443/ws/v5/public` | `books` channel (400 levels, snapshot then updates) | `trades` | `GET https://www.okx.com/api/v5/market/candles?instId=&bar=` | `BTC-USDT` |
 | Bybit | `wss://stream.bybit.com/v5/public/spot` | `orderbook.200.BTCUSDT` (snapshot then delta) | `publicTrade.BTCUSDT` | `GET https://api.bybit.com/v5/market/kline?category=spot&symbol=&interval=` | `BTCUSDT` |
 | Hyperliquid (perps) | `wss://api.hyperliquid.xyz/ws` | `l2Book` subscription (20 levels a side per message; `nSigFigs` coarsens the levels to reach deeper) | `trades` | `POST https://api.hyperliquid.xyz/info` with `{"type":"candleSnapshot","req":{coin,interval,startTime,endTime}}` | `BTC` |
+
+### Binance: verified 17 November 2026
+
+Tested from Adrian's Mac (Romania) with `curl` (sending `Origin: https://flame.trading`) and Node's WebSocket, then from Chrome on `localhost` and on flame.trading.
+
+- **REST CORS:** `api.binance.com` and `data-api.binance.vision` both answer `access-control-allow-origin: *`. No proxy needed.
+- **Klines:** `GET /api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000` returns arrays `[openTime, open, high, low, close, volume, closeTime, quoteVolume, trades, takerBuyBase, takerBuyQuote, ignore]`; prices are strings. `endTime` pages back, `startTime` pages forward. Weight 2.
+- **Depth snapshot:** `GET /api/v3/depth?symbol=BTCUSDT&limit=5000` returns `{lastUpdateId, bids, asks}`. Weight 250 at this limit (the budget is 6,000 a minute per IP).
+- **Combined stream:** `wss://stream.binance.com:9443/stream?streams=a/b` works, and so does connecting to bare `/stream` and sending `{"method":"SUBSCRIBE","params":[…],"id":n}`; the reply is `{"result":null,"id":n}`. Flame uses the second form so it can change subscriptions without reconnecting. Messages arrive as `{"stream":"btcusdt@aggTrade","data":{…}}`.
+- **Fallback hosts work:** `wss://data-stream.binance.vision/stream` carried `aggTrade`, `depth20@100ms` and `bookTicker`.
+- **`@aggTrade`:** `{p, q, T, m}`; `m: true` means the buyer was the maker, so the trade was a sell.
+- **`@depth@100ms`:** `{U, u, b, a}` diffs, synced to the snapshot by update id as described below. About ten messages a second for BTC.
+- **`@kline_<tf>`:** `{k: {t, o, h, l, c, v, V, x}}` roughly once a second; `V` is taker-buy volume, `x` is true on the final update of a bar.
+- **`@miniTicker`:** `{c, o, h, l, v, q}` once a second; `o` is the price 24 hours ago, so change = (c − o) / o.
+- **`GET /api/v3/ticker/24hr?type=MINI`** (all symbols) is about 1 MB and weight 80. Flame calls it only when search opens, never on a timer. Its fields are `lastPrice`, `openPrice`, `quoteVolume`.
+- **Limits:** five control messages a second per connection (Flame batches subscription changes into one message every 250 ms); 1,024 streams per connection.
+- Not yet seen: the regional block on `api.binance.com`. The adapter rotates to the `binance.vision` hosts on 403, 451, 429 or a network failure.
 
 Things to check for each venue when you verify:
 

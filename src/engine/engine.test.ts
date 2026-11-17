@@ -477,4 +477,18 @@ describe('bars: replay and the catch-up after Flame was closed', () => {
     expect(r.account.fills.map((f) => f.price)).toEqual([98, 96 * 0.9999]);
     expect(Object.keys(r.account.positions)).toHaveLength(0);
   });
+
+  it('a catch-up ignores orders placed and positions opened after the moment it replays from', () => {
+    // An order placed at t = 5,000, replayed against a bar from before it existed.
+    const late = place(createAccount(), { type: 'limit', limit: 48_000, qty: 1 }, q(50_000), 5_000).account;
+    const bar = { t: 1_000, o: 49_500, h: 49_600, l: 47_000, c: 47_500 };
+    expect(onBar(late, BTC, bar, S, true, 2_000).account.fills).toHaveLength(0);
+    // The same order placed before the replay point does fill.
+    const early = place(createAccount(), { type: 'limit', limit: 48_000, qty: 1 }, q(50_000), 1_500).account;
+    expect(onBar(early, BTC, bar, S, true, 2_000).account.fills).toHaveLength(1);
+    // A position opened after the replay point is not stopped or liquidated by old bars.
+    const pos = place(createAccount(), { mode: 'lev', leverage: 10, qty: 1, sl: 49_000 }, q(50_000), 5_000).account;
+    const r = onBar(pos, BTC, { t: 1_000, o: 49_500, h: 49_600, l: 40_000, c: 41_000 }, S, true, 2_000);
+    expect(r.account.positions[posKey(BTC, 'lev')]).toBeDefined();
+  });
 });
