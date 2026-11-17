@@ -86,41 +86,23 @@ The smallest thing worth using: watch BTC, place a trade, see the P&L.
 
 | Piece | State on 17 November 2026 |
 |---|---|
-| GitHub repo `tabledadriandev/flame.trading` | Created by Adrian, empty until the first push |
-| First push of this baseline | **Not done.** The cloud session that wrote the baseline had read access only; push from the Desktop folder (see below) |
-| Vercel project | **Not created.** The Vercel connector used from the chat is not allowed to create projects (403 on 17 November 2026). Create it once, as below |
-| Domain `flame.trading` | Registered in the Vercel team with Vercel nameservers; not attached to any project yet |
+| GitHub repo `tabledadriandev/flame.trading` | Live, public, branch `main` |
+| First push of the baseline | Done on 17 November 2026 |
+| Vercel project | `flame` (`prj_PLW0bZJP5IKrcilRFBvAzvwiDkBN`) in team `stefan-code-js-projects`, preset Vite, connected to the GitHub repo. Every push to `main` deploys to production |
+| Domain `flame.trading` | Attached to the project as the production domain; `www.flame.trading` redirects to it (308) |
+| `https://flame.trading/api/health` | Returns `{"ok":true}` (checked 17 November 2026) |
 
-### First push from the Desktop folder
-
-```bash
-cd ~/Desktop/flame
-git init -b main
-git remote add origin https://github.com/tabledadriandev/flame.trading.git
-npm install
-npm run build          # should pass
-git add -A
-git commit -m "Baseline: shell, design tokens, spec"
-git push -u origin main
-```
-
-### Create the Vercel project (once, after the first push)
-
-Vercel's GitHub integration is already installed for `tabledadriandev` with access to all repositories, so either route works.
-
-In the dashboard:
-
-1. vercel.com, team `stefan-code-js-projects`, Add New, Project, import `tabledadriandev/flame.trading`. Preset: Vite. Deploy.
-2. Project, Settings, Domains: add `flame.trading`, then add `www.flame.trading` as a redirect to it.
-
-Or from the terminal, in the project folder:
+### How it was set up
 
 ```bash
-npx vercel@latest login
-npx vercel@latest link --scope stefan-code-js-projects --project flame   # creates the project if it does not exist
-npx vercel@latest git connect                                            # ties the project to the GitHub repo
-npx vercel@latest --prod                                                 # first production deployment
+npx vercel@latest link --yes --scope stefan-code-js-projects --project flame   # created the project and connected the repo
+npx vercel@latest --prod --yes --scope stefan-code-js-projects                 # first production deployment
 npx vercel@latest domains add flame.trading flame --scope stefan-code-js-projects
+# www redirect: POST /v10/projects/<id>/domains {"name":"www.flame.trading","redirect":"flame.trading","redirectStatusCode":308}
 ```
 
-Check the CLI's own `--help` if a flag has changed. After this, every push to `main` deploys to flame.trading. Confirm with `https://flame.trading/api/health`, then update the table above.
+Notes for the next session:
+
+- The Vercel CLI on this Mac is logged in as `tabledadriandev`; `.vercel/` and `.env.local` are local only (ignored by git).
+- The Vercel connector in the chat cannot see this project (404). Use the CLI (`npx vercel@latest api …`) for project settings.
+- `vercel link` appends `.env*` to `.gitignore`, which would also ignore `.env.example`. That line was removed; `.env` and `.env.*` already cover it.
