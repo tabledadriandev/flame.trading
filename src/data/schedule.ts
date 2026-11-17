@@ -1,6 +1,5 @@
 // Feed messages arrive faster than the screen should repaint. Work is batched
-// onto the next animation frame; in a hidden tab (where frames stop) it falls
-// back to a timer so working orders are still evaluated.
+// onto the next animation frame, with a timer behind it for when frames stop.
 
 type Job = () => void;
 
@@ -27,14 +26,28 @@ function run(): void {
   }
 }
 
-/** Run `job` once on the next frame, however many times it is requested before then. */
+/** How long a batch may wait for a frame before a timer delivers it instead. */
+const FRAME_FALLBACK_MS = 200;
+
+/**
+ * Run `job` once on the next frame, however many times it is requested before
+ * then. A timer backs the frame up: browsers stop animation frames for a tab
+ * that is hidden, and also for a window that is merely covered or minimised,
+ * and working orders must still be evaluated then.
+ */
 export function onFrame(job: Job): void {
   pending.add(job);
   if (scheduled) return;
   scheduled = true;
-  const hidden = typeof document !== 'undefined' && document.hidden;
-  if (!hidden && typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
-  else setTimeout(run, 100);
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    run();
+  };
+  const timer = setTimeout(once, FRAME_FALLBACK_MS);
+  if (typeof requestAnimationFrame === 'function' && !(typeof document !== 'undefined' && document.hidden)) requestAnimationFrame(once);
 }
 
 /** Call `fn` at most once per `ms`, always delivering the latest call. */

@@ -12,6 +12,18 @@ export function Toasts() {
             {t.side ? <span aria-hidden="true">{t.side === 'buy' ? '▲ ' : '▼ '}</span> : null}
             {t.text}
           </p>
+          {t.action ? (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                t.action!.run();
+                dismiss(t.id);
+              }}
+            >
+              {t.action.label}
+            </button>
+          ) : null}
           <button type="button" className="btn btn-quiet btn-icon btn-sm" onClick={() => dismiss(t.id)} aria-label="Dismiss">
             <X size={13} aria-hidden="true" />
           </button>

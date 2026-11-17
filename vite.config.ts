@@ -8,7 +8,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // A new version waits until the user chooses to reload: an automatic reload could interrupt an order being typed.
+      registerType: 'prompt',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Flame',

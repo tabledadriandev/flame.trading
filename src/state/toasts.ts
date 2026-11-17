@@ -6,11 +6,13 @@ export interface Toast {
   /** Buying or selling pressure, when the message is about a fill. Shown as a glyph and an edge, never colour alone. */
   side?: 'buy' | 'sell';
   sticky?: boolean;
+  /** One thing the reader can do about it. */
+  action?: { label: string; run: () => void };
 }
 
 interface ToastStore {
   toasts: Toast[];
-  push(text: string, opts?: { side?: 'buy' | 'sell'; sticky?: boolean }): void;
+  push(text: string, opts?: { side?: 'buy' | 'sell'; sticky?: boolean; action?: { label: string; run: () => void } }): void;
   dismiss(id: number): void;
 }
 
@@ -35,5 +37,5 @@ export const useToasts = create<ToastStore>((set, get) => ({
   },
 }));
 
-export const toast = (text: string, opts?: { side?: 'buy' | 'sell'; sticky?: boolean }): void =>
+export const toast = (text: string, opts?: { side?: 'buy' | 'sell'; sticky?: boolean; action?: { label: string; run: () => void } }): void =>
   useToasts.getState().push(text, opts);
